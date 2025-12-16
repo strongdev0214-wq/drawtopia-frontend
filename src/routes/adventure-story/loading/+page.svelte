@@ -313,7 +313,7 @@
             storyTextProgress = 5;
             
             // Send request to generate-story endpoint
-            const storyGenerationEndpoint = 'https://drawtopia-backend.vercel.app/';
+            const storyGenerationEndpoint = 'https://image-edit-five.vercel.app';
             const response = await fetch(`${storyGenerationEndpoint}/generate-story`, {
                 method: 'POST',
                 headers: {
