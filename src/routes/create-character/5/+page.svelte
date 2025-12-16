@@ -6,8 +6,6 @@
   import { goto } from "$app/navigation";
   import MobileBackBtn from "../../../components/MobileBackBtn.svelte";
   import MobileStepProgressBar from "../../../components/MobileStepProgressBar.svelte";
-  import WorldCard from "../../../components/WorldCard.svelte";
-  import AdventureCard from "../../../components/AdventureCard.svelte";
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
   import forest from "../../../assets/big.png";
@@ -15,7 +13,7 @@
   import underwater from "../../../assets/underwater.png";
   import treasure from "../../../assets/treasurehunt.png";
   import helping from "../../../assets/helpfriend.png";
-  import globehemispherewest from "../../../assets/BlackGlobeHemisphereWest.svg";
+  import globehemispherewest from "../../../assets/BlackGlobeHemiSphereWest.svg";
   import { storyCreation } from "../../../lib/stores/storyCreation";
 
   let isMobile = false;
