@@ -7,7 +7,7 @@
     import logo from "../../assets/logo.png";
     import arrowleft from "../../assets/WhiteArrowLeft.svg";
     import smiley from "../../assets/Smiley.svg";
-    import globehemispherewest from "../../assets/BlackGlobeHemisphereWest.svg";
+    import globehemispherewest from "../../assets/BlackGlobeHemiSphereWest.svg";
     import crosshair from "../../assets/Crosshair.svg";
     import fire from "../../assets/Fire.svg";
     import shieldstar from "../../assets/ShieldStar.svg";
