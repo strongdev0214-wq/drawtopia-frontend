@@ -250,7 +250,7 @@
       const promises = scenePrompts.map(async (prompt, index) => {
         // Generate image using the combined prompt via API
         const response = await fetch(
-          'https://image-edit-five.vercel.app/edit-image',
+          'https://drawtopia-backend.vercel.app/edit-image',
           {
             method: "POST",
             headers: {
@@ -825,7 +825,7 @@
       if (!resizedCharacterUrl || !resizedCroppedUrl) {
         console.error('Failed to resize images for comparison');
         // Fallback to original URLs if resize fails
-        const response = await fetch('https://image-edit-five.vercel.app/compare-similarity', {
+        const response = await fetch('https://drawtopia-backend.vercel.app/compare-similarity', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -906,7 +906,7 @@
 
       console.log('Comparing resized images:', charUrlData.publicUrl, croppedUrlData.publicUrl);
       
-      const response = await fetch('https://image-edit-five.vercel.app/compare-similarity', {
+      const response = await fetch('https://drawtopia-backend.vercel.app/compare-similarity', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
