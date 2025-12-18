@@ -112,7 +112,8 @@
     // Save story to Supabase database
     async function saveStoryToDatabase(
         storyPages: Array<{ pageNumber: number; text: string; scene?: string }>,
-        sceneImages: string[]
+        sceneImages: string[],
+        audioUrls?: (string | null)[]
     ) {
         try {
             const storyState = get(storyCreation);
@@ -142,7 +143,7 @@
             }
 
             // Format story_content as JSON
-            // Store story pages with their text and associated scene images
+            // Store story pages with their text, associated scene images, and audio URLs
             const storyContent = {
                 pages: storyPages.map((page, index) => ({
                     pageNumber: page.pageNumber || index + 1,
@@ -167,6 +168,7 @@
                 story_cover: storyState.storyCover || sessionStorage.getItem('selectedImage_step6') || undefined,
                 story_content: JSON.stringify(storyContent),
                 scene_images: sceneImages.length > 0 ? sceneImages.map(url => url.split('?')[0]) : [],
+                audio_urls: audioUrls && audioUrls.length > 0 ? audioUrls.map(url => url ? url.split('?')[0] : null) : [],
                 status: 'completed' as const
             };
 
@@ -193,7 +195,7 @@
     }
 
     async function generateStory() {
-        if (storyGenerated) return;
+        // if (storyGenerated) return;
         
         try {
             // Initialize story creation store to get latest data
@@ -313,7 +315,7 @@
             storyTextProgress = 5;
             
             // Send request to generate-story endpoint
-            const storyGenerationEndpoint = 'https://image-edit-five.vercel.app';
+            const storyGenerationEndpoint = 'https://drawtopia-backend.vercel.app';
             const response = await fetch(`${storyGenerationEndpoint}/generate-story`, {
                 method: 'POST',
                 headers: {
@@ -513,8 +515,17 @@
                 console.warn('No scene images found in response');
             }
             
+            // Extract audio URLs from result
+            let audioUrls: (string | null)[] = [];
+            if (result.audio_urls && Array.isArray(result.audio_urls)) {
+                audioUrls = result.audio_urls;
+                console.log('Audio URLs extracted from result:', audioUrls);
+            } else {
+                console.log('No audio_urls found in result');
+            }
+            
             // Save story to Supabase database
-            await saveStoryToDatabase(storyPages, cleanSceneImages);
+            await saveStoryToDatabase(storyPages, cleanSceneImages, audioUrls);
             
             storyGenerated = true;
         } catch (error) {

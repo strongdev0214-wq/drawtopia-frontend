@@ -88,30 +88,141 @@ export async function generateStyledImage(options: ImageGenerationOptions): Prom
       };
       prompt = worldMapping[world] || worldMapping.forest;
     } else if (style === 'adventure') {
-      // Handle adventure prompts - create simple prompts based on world and adventure type
-      const [world, adventureType] = (quality as string).split('_');
-      const adventurePrompts: { [key: string]: { [key: string]: string } } = {
-        'outerspace': {
-          'helpfriend': 'Enhance this character image into a friendly space adventure while keeping the character\'s original features, personality, and quality. In outer space, the character helps a friend in need, such as repairing a small alien\'s ship or guiding them safely across a planet. Focus on kindness, cooperation, and using their talents for good, surrounded by glowing stars and friendly aliens.',
-          'treasurehunt': 'Enhance this character image into an outer space adventure while preserving the character\'s style, personality, and quality. The character explores distant planets, glowing stars, and asteroid ruins on a treasure hunt. They search for a legendary treasure among cosmic mysteries, showing perseverance and discovery. Keep the character authentic while expanding the cosmic background with colorful alien worlds.'
-        },
-        'underwater': {
-          'helpfriend': 'Enhance this character image into an underwater kingdom adventure while keeping the character\'s style, personality, and quality intact. The character uses their special ability to help a sea creature friend in need, perhaps freeing them from coral or guiding them to safety. Focus on kindness, cooperation, and talents for good while surrounding them with coral reefs, shimmering fish, and glowing aquatic scenery.',
-          'treasurehunt': 'Enhance this character image into an underwater kingdom scene while preserving the character\'s original style, features, and quality. The character dives among coral reefs, glowing fish, and mysterious ruins on a treasure hunt. They search for a legendary treasure chest with perseverance, discovery, and problem-solving. Keep the character authentic while enriching the aquatic world with magical underwater details.'
-        },
-        'forest': {
-          'helpfriend': 'Enhance this character image into a magical enchanted forest scene while keeping the character\'s style, features, and quality intact. The character helps a friend in need, using their special ability to free or protect a woodland creature. Focus on kindness, cooperation, and using talents for good, with glowing plants and talking animals enriching the background.',
-          'treasurehunt': 'Enhance this character image into a vibrant enchanted forest adventure while keeping the character\'s original style, features, and quality. The character is on a treasure hunt, exploring glowing plants, talking animals, and hidden ruins. They search for a legendary treasure with problem-solving, discovery, and perseverance. Preserve the character\'s personality and functionality while enriching the magical woodland background.'
+      // Use the story adventure book cover prompt from prompt1.json
+      const generateStoryScene = (prompt1Data as any).generateStoryScene;
+      const coverSection = generateStoryScene?.cover;
+      const basePrompt = coverSection?.basePrompt;
+      
+      if (!basePrompt) {
+        throw new Error('Story adventure book cover basePrompt not found in prompt1.json');
+      }
+      
+      // Get character details from options or sessionStorage
+      let charName = characterName;
+      let charStyle = '';
+      let storyWorld = '';
+      let charType = '';
+      let storyTitle = '';
+      let adventureType = '';
+      let ageGroup = '';
+      
+      if (browser) {
+        // Get character name
+        if (!charName) {
+          charName = sessionStorage.getItem('characterName') || 'Character';
         }
+        
+        // Get character type
+        const storedCharType = sessionStorage.getItem('selectedCharacterType') || 'person';
+        // Map to prompt format
+        if (storedCharType === 'magical_creature' || storedCharType === 'magical') {
+          charType = 'magical';
+        } else if (storedCharType === 'animal') {
+          charType = 'animal';
+        } else {
+          charType = 'person';
+        }
+        
+        // Get character style (3d, cartoon, or anime)
+        const storedStyle = sessionStorage.getItem('selectedStyle') || '';
+        if (storedStyle === '3d' || storedStyle === 'cartoon' || storedStyle === 'anime') {
+          charStyle = storedStyle;
+        } else {
+          // Default to cartoon if not found
+          charStyle = 'cartoon';
+        }
+        
+        // Get story title
+        storyTitle = sessionStorage.getItem('storyTitle') || 'Adventure Story';
+        
+        // Get story world from quality parameter (format: "world_adventureType") or sessionStorage
+        const [world, adventureTypeKey] = (quality as string).split('_');
+        const storedWorld = sessionStorage.getItem('selectedWorld') || world;
+        
+        // Map world names to prompt1.json format
+        const worldMapping: { [key: string]: string } = {
+          'forest': 'enchantedForest',
+          'outerspace': 'outerSpace',
+          'underwater': 'underwaterKingdom'
+        };
+        
+        storyWorld = worldMapping[storedWorld] || worldMapping[world] || 'enchantedForest';
+        
+        // Get adventure type and map to display format
+        const storedAdventure = sessionStorage.getItem('selectedAdventure') || adventureTypeKey || 'treasure';
+        const adventureMapping: { [key: string]: string } = {
+          'treasure': 'Treasure Hunt',
+          'treasurehunt': 'Treasure Hunt',
+          'helping': 'Helping a Friend',
+          'helpfriend': 'Helping a Friend'
+        };
+        adventureType = adventureMapping[storedAdventure] || adventureMapping[adventureTypeKey] || 'Treasure Hunt';
+        
+        // Get age group
+        ageGroup = sessionStorage.getItem('ageGroup') || '7-10';
+      } else {
+        // Fallback values for SSR
+        charName = characterName || 'Character';
+        charType = 'person';
+        charStyle = 'cartoon';
+        storyWorld = 'enchantedForest';
+        storyTitle = 'Adventure Story';
+        adventureType = 'Treasure Hunt';
+        ageGroup = '7-10';
+      }
+      
+      // Map story world to display format
+      const worldDisplayMapping: { [key: string]: string } = {
+        'enchantedForest': 'Enchanted Forest',
+        'outerSpace': 'Outer Space',
+        'underwaterKingdom': 'Underwater Kingdom'
       };
-      prompt = adventurePrompts[world]?.[adventureType] || adventurePrompts.forest?.treasurehunt || 'Enhance this character image with a professional illustration style.';
+      const storyWorldDisplay = worldDisplayMapping[storyWorld] || 'Enchanted Forest';
+      
+      // Build BOOK INFORMATION section
+      const bookInfo = `BOOK INFORMATION:
+- Book Title: "${storyTitle}"
+- Format: Story Adventure Book (5-page narrative)
+- Character: ${charName}, a ${charType}
+- World: ${storyWorldDisplay} (Enchanted Forest / Outer Space / Underwater Kingdom)
+- Adventure: ${adventureType} (Treasure Hunt / Helping a Friend)
+- Art Style: ${charStyle}
+- Target Age Group: ${ageGroup}`;
+      
+      // Get style specifications
+      const styleSpecs = coverSection?.characterStyleSpecifications?.[charStyle] || '';
+      
+      // Get environment specifications
+      const environmentSpecs = coverSection?.coverEnvironment?.[storyWorld] || '';
+      
+      // Replace placeholders in the base prompt
+      let processedBasePrompt = basePrompt
+        .replace(/\{character_name\}/g, charName)
+        .replace(/\{character_style\}/g, charStyle)
+        .replace(/\{story_world\}/g, storyWorld);
+      
+      // Combine all prompts: basePrompt + style + environment
+      const promptParts: string[] = [processedBasePrompt];
+      
+      if (styleSpecs) {
+        promptParts.push(styleSpecs);
+      }
+      
+      if (environmentSpecs) {
+        promptParts.push(environmentSpecs);
+      }
+      
+      const combinedPrompt = promptParts.join('\n\n');
+      
+      // Combine BOOK INFORMATION with the combined cover prompt
+      prompt = `${bookInfo}\n\n${combinedPrompt}`;
     } else {
       // Handle other style prompts - use enhancement prompt builder if applicable
       // For styles that aren't character enhancements, create a simple fallback
       prompt = `Enhance this character image with a ${style} style at ${quality} quality level. Keep the character's original features and personality intact while applying the requested style.`;
     }
 
-    const response = await fetch('https://image-edit-five.vercel.app/edit-image', {
+    const response = await fetch('https://drawtopia-backend.vercel.app/edit-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -366,7 +477,7 @@ export async function generateCharacterWithSpecialAbility(
       combinedPrompt = negativePrompts.join(' ');
     }
 
-    const response = await fetch('https://image-edit-five.vercel.app/edit-image', {
+    const response = await fetch('https://drawtopia-backend.vercel.app/edit-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

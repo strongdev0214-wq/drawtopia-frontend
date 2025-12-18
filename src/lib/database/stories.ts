@@ -21,6 +21,7 @@ export interface Story {
   cover_design?: string;
   story_content?: string | any; // JSON string or object containing story pages/text
   scene_images?: string[]; // Array of scene image URLs
+  audio_urls?: (string | null)[]; // Array of audio URLs (one per page, null if failed)
   status?: 'generating' | 'completed' | 'failed';
   story_type?: string; // Type of story: adventure story book or search adventure
 }
@@ -66,6 +67,7 @@ export async function createStory(story: Story): Promise<DatabaseResult> {
         cover_design: story.cover_design,
         story_content: storyContentValue,
         scene_images: story.scene_images || [],
+        audio_urls: story.audio_urls || [],
         status: story.status || 'generating',
         story_type: story.story_type || 'story'
       }])

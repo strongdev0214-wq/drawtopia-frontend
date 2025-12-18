@@ -312,7 +312,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
         // Transform the data to match the StoryLibraryComponent interface
         stories = storiesData
           .map(
-            (story: Story & { child_profiles?: any, user_name?: string }, index: number) => ({
+            (story: Story & { child_profiles?: any, user_name?: string, uid?: string }, index: number) => ({
               id: story.id || `temp_story_${index}_${Date.now()}`,
               title: story.story_title || `${story.character_name}'s Adventure`,
               author: story.child_profiles?.first_name || "Unknown",
@@ -331,9 +331,11 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
                 story.original_image_url || "https://placehold.co/332x225",
               story_title: story.story_title,
               user_name: story.user_name,
-              child_profiles: story.child_profiles,
+              child_profile_id: story.child_profile_id,
               scene_images: story.scene_images,
-              story_content: story.story_content
+              story_content: story.story_content,
+              story_type: story.story_type,
+              uid: story.uid
             }),
           )
           .filter((story) => story.id); // Ensure all stories have valid ids
@@ -508,79 +510,180 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   };
 
   // Handle view book button click from BookCard
-  const handleViewBook = (event: CustomEvent) => {
-    const story = event.detail;
+  const handleViewBook = async (event: CustomEvent) => {
+    const bookInfo = event.detail;
+
+    console.log("==============================Book Info:", bookInfo);
     
-    if (!story || !browser) {
-      console.error("Invalid story data or browser not available");
+    if (!bookInfo || !browser) {
+      console.error("Invalid book info or browser not available");
       return;
     }
 
     try {
-      // Store story data in sessionStorage for the preview page
+      // Get story ID from the book info
+      const storyId = bookInfo.uid; 
+      
+      if (!storyId) {
+        console.error("Story ID not found in book info");
+        return;
+      }
+
+      // Fetch the story record from Supabase
+      const { data: story, error: fetchError } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('uid', storyId)
+        .single();
+
+      if (fetchError) {
+        console.error("Error fetching story from Supabase:", fetchError);
+        alert("Failed to load story. Please try again.");
+        return;
+      }
+
+      if (!story) {
+        console.error("Story not found in database");
+        alert("Story not found.");
+        return;
+      }
+
+      const storyType = (story.story_type || "").toLowerCase();
+
+      // Store story data in sessionStorage for the preview or intersearch page
       if (story.story_title) {
         sessionStorage.setItem("storyTitle", story.story_title);
         sessionStorage.setItem("story_title", story.story_title);
       }
 
-      
-      let storyPages = JSON.parse(story.story_content);
-      
-      storyPages = storyPages.pages.map((page: any, index: number) => {
-        return {
-          pageNumber: page.pageNumber,
-          text: page.text,
-          scene: page.sceneImage
+      // Handle search adventure stories
+      if (storyType === "search") {
+        // Store cover image - priority: story_cover field, then story_content.cover
+        let coverImage: string | null = null;
+        if (story.story_cover) {
+          coverImage = story.story_cover;
+        } else if (story.story_content) {
+          try {
+            const storyContent = JSON.parse(story.story_content);
+            if (storyContent.cover) {
+              coverImage = storyContent.cover;
+            }
+          } catch (parseError) {
+            console.error("Error parsing story content for cover:", parseError);
+          }
         }
-      });
-
-      sessionStorage.setItem('storyPages', JSON.stringify(storyPages));
-      
-      // if (story.story_content) {
-      //   console.log("-------------------------------------------------------", story.story_content)
-      //   // Parse story_content if it's a string, otherwise use as-is
-      //   let storyPages = [];
-      //   try {
-      //     const parsedContent = typeof story.story_content === 'string' 
-      //       ? JSON.parse(story.story_content) 
-      //       : story.story_content;
-          
-      //     // Check if it's an array of pages
-      //     if (Array.isArray(parsedContent)) {
-      //       storyPages = parsedContent;
-      //     } else if (parsedContent.pages && Array.isArray(parsedContent.pages)) {
-      //       storyPages = parsedContent.pages;
-      //     } else if (parsedContent.scenes && Array.isArray(parsedContent.scenes)) {
-      //       // If it's scenes format, convert to pages format
-      //       storyPages = parsedContent.scenes.map((scene: any, index: number) => ({
-      //         pageNumber: index + 1,
-      //         text: scene.text || scene.description || "",
-      //         scene: scene.scene || scene.imageUrl || scene.image,
-      //         imageUrl: scene.scene || scene.imageUrl || scene.image
-      //       }));
-      //     }
-      //   } catch (e) {
-      //     console.warn("Could not parse story_content, using scene_images instead", e);
-      //   }
         
-      //   if (storyPages.length > 0) {
-      //     sessionStorage.setItem("storyPages", JSON.stringify(storyPages));
-      //   }
-      // }
-      
-      // if (story.scene_images && Array.isArray(story.scene_images)) {
-      //   story.scene_images.forEach((sceneUrl: string, index: number) => {
-      //     if (sceneUrl) {
-      //       sessionStorage.setItem(`storyScene_${index + 1}`, sceneUrl);
-      //     }
-      //   });
-      // }
-      
-      // Navigate to preview page
-      
-      goto("/preview/default");
+        if (coverImage) {
+          // Remove query parameters if any
+          const cleanCoverUrl = coverImage.split("?")[0];
+          sessionStorage.setItem('intersearch_cover', cleanCoverUrl);
+        }
+
+        // Store scene images (scenes 1-4)
+        // scene_images array contains only the 4 scenes, not the cover
+        if (story.scene_images && Array.isArray(story.scene_images)) {
+          story.scene_images.forEach((imageUrl: string, index: number) => {
+            // Index 0 = scene 1, index 1 = scene 2, etc.
+            const sceneNumber = index + 1;
+            const cleanSceneUrl = imageUrl.split("?")[0];
+            sessionStorage.setItem(`intersearch_scene_${sceneNumber}`, cleanSceneUrl);
+          });
+        } else if (story.story_content) {
+          // Fallback: try to get scenes from story_content
+          try {
+            const storyContent = JSON.parse(story.story_content);
+            if (storyContent.scenes && Array.isArray(storyContent.scenes)) {
+              storyContent.scenes.forEach((scene: any, index: number) => {
+                const sceneNumber = scene.sceneNumber || (index + 1);
+                const sceneImageUrl = scene.sceneImage || scene.scene_image;
+                if (sceneImageUrl) {
+                  const cleanSceneUrl = sceneImageUrl.split("?")[0];
+                  sessionStorage.setItem(`intersearch_scene_${sceneNumber}`, cleanSceneUrl);
+                }
+              });
+            }
+          } catch (parseError) {
+            console.error("Error parsing story content for scenes:", parseError);
+          }
+        }
+
+        // Store character and world information for intersearch page
+        if (story.character_name) {
+          sessionStorage.setItem('characterName', story.character_name);
+        }
+        if (story.character_type) {
+          sessionStorage.setItem('selectedCharacterType', story.character_type);
+        }
+        if (story.special_ability) {
+          sessionStorage.setItem('specialAbility', story.special_ability);
+        }
+        if (story.character_style) {
+          sessionStorage.setItem('selectedStyle', story.character_style);
+        }
+        if (story.original_image_url) {
+          sessionStorage.setItem('characterImageUrl', story.original_image_url);
+        }
+        
+        // Map story_world to intersearch format
+        if (story.story_world) {
+          const worldMap: { [key: string]: string } = {
+            'forest': 'enchanted-forest',
+            'space': 'outer-space',
+            'underwater': 'underwater-kingdom'
+          };
+          const intersearchWorld = worldMap[story.story_world] || story.story_world;
+          sessionStorage.setItem('intersearch_world', intersearchWorld);
+        }
+
+        // Get difficulty from story_content if available
+        if (story.story_content) {
+          try {
+            const storyContent = JSON.parse(story.story_content);
+            if (storyContent.difficulty) {
+              sessionStorage.setItem('intersearch_difficulty', storyContent.difficulty);
+            }
+          } catch (parseError) {
+            // Ignore parse errors for difficulty
+          }
+        }
+
+        // Coming from dashboard, we want to resume existing intersearch scenes
+        sessionStorage.setItem("intersearch_resume_existing", "true");
+        goto("/intersearch/1");
+      } else {
+        // Handle regular story books
+        // Parse and process story content
+        if (story.story_content) {
+          try {
+            let storyPages = JSON.parse(story.story_content);
+            
+            // Handle different story content structures
+            if (storyPages.pages && Array.isArray(storyPages.pages)) {
+              storyPages = storyPages.pages.map((page: any, index: number) => {
+                return {
+                  pageNumber: page.pageNumber,
+                  text: page.text,
+                  scene: page.sceneImage
+                }
+              });
+              sessionStorage.setItem('storyPages', JSON.stringify(storyPages));
+            }
+          } catch (parseError) {
+            console.error("Error parsing story content:", parseError);
+          }
+        }
+
+        // Store additional story data for navigation
+        if (story.story_cover) {
+          sessionStorage.setItem("story_cover", story.story_cover);
+        }
+
+        // Default behaviour: go to preview page
+        goto("/preview/default");
+      }
     } catch (error) {
       console.error("Error handling view book:", error);
+      alert("An error occurred while loading the story. Please try again.");
     }
   };
 

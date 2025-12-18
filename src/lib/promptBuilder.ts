@@ -463,6 +463,7 @@ export interface IntersearchSearchAdventurePromptOptions {
   difficulty: string; // 'easy' | 'medium' | 'hard'
   sceneNumber: number; // 1-4
   characterReferenceImage?: string;
+  storyTitle?: string; // Story title for cover prompt
 }
 
 /**
@@ -511,9 +512,75 @@ function replaceIntersearchPlaceholders(
   result = result.replace(/\{character_style\}/g, options.characterStyle);
   result = result.replace(/\{age_group\}/g, options.ageGroup);
   result = result.replace(/\{story_world\}/g, worldDisplay);
+  result = result.replace(/\{story_title\}/g, options.storyTitle || 'Adventure Story');
   result = result.replace(/\{character_reference_image\}/g, options.characterReferenceImage || '[REFERENCE IMAGE]');
   
   return result;
+}
+
+/**
+ * Builds an intersearch cover prompt from prompt1.json
+ * 
+ * Combines:
+ * 1. basePrompt from generateSearchAdventure.cover
+ * 2. coverEnvironment based on world
+ * 3. characterStyleSpecifications based on character style
+ */
+export function buildIntersearchCoverPrompt(
+  options: IntersearchSearchAdventurePromptOptions
+): string {
+  const searchAdventure = (prompt1Data as any).generateSearchAdventure;
+  if (!searchAdventure) {
+    throw new Error('generateSearchAdventure not found in prompt1.json');
+  }
+
+  const cover = searchAdventure.cover;
+  if (!cover) {
+    throw new Error('cover not found in generateSearchAdventure');
+  }
+
+  const promptParts: string[] = [];
+
+  // 0. BOOK INFORMATION (at the head)
+  const worldDisplay = getWorldDisplayName(options.storyWorld);
+  const bookInfo = `BOOK INFORMATION:
+ - Book Title: "${options.storyTitle || 'Adventure Story'}"
+ - Format: Interactive Search Book (Where's Waldo style)
+ - Character: ${options.characterName}, a ${options.characterType}
+ - World: ${worldDisplay} (Enchanted Forest / Outer Space / Underwater Kingdom)
+ - Art Style: ${options.characterStyle}
+ - Target Age Group: ${options.ageGroup}`;
+  promptParts.push(bookInfo);
+
+  // 1. Base prompt
+  const basePrompt = cover.basePrompt || '';
+  if (basePrompt && basePrompt.trim().length > 0) {
+    // Replace {character_description} placeholder with special ability
+    let processedPrompt = replaceIntersearchPlaceholders(basePrompt, options);
+    processedPrompt = processedPrompt.replace(/\{character_description\}/g, options.specialAbility || 'special abilities');
+    promptParts.push(`\n\n${processedPrompt}`);
+  }
+
+  // 2. Cover environment based on world
+  const worldKey = getWorldKey(options.storyWorld);
+  const coverEnvironment = cover.coverEnvironment?.[worldKey];
+  if (coverEnvironment && coverEnvironment.trim().length > 0) {
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(coverEnvironment, options)}`);
+  }
+
+  // 3. Character style specifications
+  const styleKey = options.characterStyle === '3d' ? '3d' : 
+                   options.characterStyle === 'cartoon' ? 'cartoon' : 
+                   options.characterStyle === 'anime' ? 'anime' : 'base';
+  const styleSpecs = cover.characterStyleSpecifications?.[styleKey];
+  if (styleSpecs && styleSpecs.trim().length > 0) {
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(styleSpecs, options)}`);
+  }
+
+  // Combine all parts
+  const finalPrompt = promptParts.join('');
+
+  return finalPrompt;
 }
 
 /**

@@ -15,13 +15,19 @@
   export let item: any;
   
   const dispatch = createEventDispatcher();
+  
+  // Loading state for PDF download
+  let isDownloadingPDF = false;
 
-  // Determine the card type based on item status
+  // Determine the card type/tag based on story_type (fallback to status)
   const getCardType = () => {
-    if (item?.status === "completed") return "story";
-    if (item?.status === "failed") return "failed";
+    const storyType = (item?.story_type || "").toLowerCase();
+    if (storyType === "search") return "search";
+    if (storyType === "story") return "story";
+
+    // Legacy fallback: mimic previous status-based behavior
     if (item?.status === "generating") return "search";
-    return "draft";
+    return "story";
   };
 
   const cardType = getCardType();
@@ -108,6 +114,162 @@
       dispatch("viewBook", item);
     }
   };
+
+  // Handle download PDF button click
+  const handleDownloadPDF = async (event?: MouseEvent) => {
+    // Prevent event propagation
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    // Prevent multiple simultaneous downloads
+    if (isDownloadingPDF) {
+      console.log('[BookCard] PDF download already in progress...');
+      return;
+    }
+    
+    // Get book ID - try uid first (as per user's changes), then id
+    // Convert to string to ensure consistency
+    let bookId: string = "";
+    if (item?.uid) {
+      bookId = String(item.uid);
+    } else if (item?.id) {
+      bookId = String(item.id);
+    }
+    
+    console.log('[BookCard] Download button clicked');
+    console.log('[BookCard] Item keys:', Object.keys(item || {}));
+    console.log('[BookCard] Item.uid:', item?.uid);
+    console.log('[BookCard] Item.id:', item?.id);
+    console.log('[BookCard] Extracted bookId:', bookId);
+    
+    if (!bookId || bookId === "undefined" || bookId === "null") {
+      console.error("[BookCard] Book ID not found in item:", item);
+      alert("Unable to find book ID. Please check the console for details.");
+      return;
+    }
+    
+    isDownloadingPDF = true;
+    console.log(`[BookCard] Starting PDF generation for book ID: ${bookId}`);
+    console.log(`[BookCard] Item data:`, { 
+      uid: item?.uid, 
+      id: item?.id, 
+      title: item?.title || item?.story_title,
+      status: item?.status 
+    });
+    
+    try {
+      // Determine backend URL
+      let backendUrl = 'http://localhost:8000';
+      
+      // Check if VITE_API_BASE_URL is set
+      if (import.meta.env.VITE_API_BASE_URL) {
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+        // Remove /api suffix if present
+        backendUrl = apiBaseUrl.replace('/api', '').replace(/\/$/, '');
+      }
+      
+      const endpoint = `${backendUrl}/api/books/${encodeURIComponent(bookId)}/generate-pdf`;
+      console.log(`[BookCard] Calling backend endpoint: ${endpoint}`);
+      
+      // Call backend endpoint to generate PDF
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[BookCard] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+          console.error(`[BookCard] Error response:`, errorData);
+        } catch (parseError) {
+          const errorText = await response.text().catch(() => '');
+          console.error(`[BookCard] Error response (text):`, errorText);
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log(`[BookCard] PDF generation result:`, result);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'PDF generation failed');
+      }
+      
+      if (!result.pdf_url) {
+        throw new Error('PDF URL not returned from server');
+      }
+
+      // Download the PDF file
+      const pdfUrl = result.pdf_url;
+      console.log(`[BookCard] PDF URL received: ${pdfUrl}`);
+      
+      // Try to download the PDF
+      try {
+        // Method 1: Direct download via anchor tag
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `${(item.title || item.story_title || 'book').replace(/[^a-z0-9]/gi, '_')}_${bookId}.pdf`;
+        link.target = '_blank'; // Open in new tab as fallback
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        
+        console.log('[BookCard] PDF download initiated successfully');
+      } catch (downloadError) {
+        console.warn('[BookCard] Direct download failed, trying alternative method:', downloadError);
+        
+        // Method 2: Fetch and download as blob (fallback)
+        try {
+          const pdfResponse = await fetch(pdfUrl);
+          if (!pdfResponse.ok) {
+            throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
+          }
+          
+          const blob = await pdfResponse.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${(item.title || item.story_title || 'book').replace(/[^a-z0-9]/gi, '_')}_${bookId}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Clean up
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+          }, 100);
+          
+          console.log('[BookCard] PDF downloaded via blob method');
+        } catch (blobError) {
+          console.error('[BookCard] Blob download also failed:', blobError);
+          // Last resort: open in new tab
+          window.open(pdfUrl, '_blank');
+          console.log('[BookCard] PDF opened in new tab as fallback');
+        }
+      }
+    } catch (error) {
+      console.error('[BookCard] Error downloading PDF:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to download PDF:\n${errorMessage}\n\nPlease check the console for more details.`);
+    } finally {
+      isDownloadingPDF = false;
+    }
+  };
 </script>
 
 <div class="cardd">
@@ -174,9 +336,28 @@
         <span class="editbook_span">{actionButton.text}</span>
       </div>
     </div>
-    <div class="button">
+    <div 
+      class="button"
+      class:downloading={isDownloadingPDF}
+      on:click|stopPropagation={handleDownloadPDF}
+      on:keydown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          handleDownloadPDF();
+        }
+      }}
+      role="button"
+      tabindex="0"
+      title={isDownloadingPDF ? "Generating PDF..." : "Download PDF"}
+      style={isDownloadingPDF ? "opacity: 0.6; cursor: wait;" : ""}
+    >
       <div class="downloadsimple">
-        <img src={simpledownload} alt="download" class="icon-img" />
+        {#if isDownloadingPDF}
+          <div class="loading-spinner-small"></div>
+        {:else}
+          <img src={simpledownload} alt="download" class="icon-img" />
+        {/if}
       </div>
     </div>
     <div class="button_01">
@@ -619,5 +800,23 @@
     align-items: flex-start;
     gap: 12px;
     display: inline-flex;
+  }
+
+  .button.downloading {
+    pointer-events: none;
+  }
+
+  .loading-spinner-small {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #438bff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 </style>

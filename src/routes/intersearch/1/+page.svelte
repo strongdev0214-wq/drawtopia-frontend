@@ -18,13 +18,13 @@
   import arrowleft from '../../../assets/ArrowLeft.svg';
   import { enhance } from "$app/forms";
   import { env } from '../../../lib/env';
-  import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt } from '../../../lib/promptBuilder';
+  import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
   import { createStory } from '../../../lib/database/stories';
   import { storyCreation } from '../../../lib/stores/storyCreation';
   import { get } from 'svelte/store';
 
   let activePage = 1;
-  const totalPages = 5;
+  const totalPages = 5; // cover + 4 scenes
 
   let generating = false;
   let generatedImages: string[] = [];
@@ -205,8 +205,25 @@
       const style = selectedStyle || 'cartoon';
       const ageGroup = sessionStorage.getItem('ageGroup') || '7-10';
 
-      // Get scene information for each scene (1-4)
+      // Generate cover first, then scenes 1-4
       const scenePrompts: string[] = [];
+      
+      // Generate cover (scene 0)
+      const coverPrompt = buildIntersearchCoverPrompt({
+        characterName: charName,
+        characterType: charType,
+        characterStyle: style as '3d' | 'cartoon' | 'anime',
+        specialAbility: ability,
+        storyWorld: selectedWorld!,
+        ageGroup: ageGroup,
+        difficulty: selectedDifficulty || 'medium',
+        sceneNumber: 0, // Cover is scene 0
+        characterReferenceImage: characterImageUrl || undefined,
+        storyTitle: title
+      });
+      scenePrompts.push(coverPrompt);
+
+      // Generate scenes 1-4
       for (let sceneNum = 1; sceneNum <= 4; sceneNum++) {
         const sceneIndex = sceneNum - 1;
         const sceneInfo = getSceneInfo(selectedWorld!, sceneIndex);
@@ -250,7 +267,7 @@
       const promises = scenePrompts.map(async (prompt, index) => {
         // Generate image using the combined prompt via API
         const response = await fetch(
-          'https://image-edit-five.vercel.app/edit-image',
+          'https://drawtopia-backend.vercel.app/edit-image',
           {
             method: "POST",
             headers: {
@@ -275,11 +292,16 @@
           const cleanUrl = data.storage_info.url.split("?")[0];
 
           // Save to sessionStorage
+          // Index 0 is cover, indices 1-4 are scenes 1-4
           if (browser) {
-            sessionStorage.setItem(
-              `intersearch_scene_${index + 1}`,
-              data.storage_info.url,
-            );
+            if (index === 0) {
+              sessionStorage.setItem('intersearch_cover', data.storage_info.url);
+            } else {
+              sessionStorage.setItem(
+                `intersearch_scene_${index}`,
+                data.storage_info.url,
+              );
+            }
           }
 
           return cleanUrl;
@@ -294,8 +316,9 @@
           if (result.status === "fulfilled") {
             return result.value;
           } else {
+            const sceneName = index === 0 ? 'cover' : `scene ${index}`;
             console.error(
-              `Failed to generate scene ${index + 1}:`,
+              `Failed to generate ${sceneName}:`,
               result.reason,
             );
             return "";
@@ -374,9 +397,11 @@
 
       // Prepare story content for search adventure
       // Store scene information with titles
+      // First image is cover, rest are scenes 1-4
       const storyContent = {
         type: 'search_adventure',
-        scenes: sceneImages.map((url, index) => ({
+        cover: sceneImages[0]?.split('?')[0] || undefined,
+        scenes: sceneImages.slice(1).map((url, index) => ({
           sceneNumber: index + 1,
           sceneImage: url.split('?')[0],
           sceneTitle: sceneTitles[world]?.[index] || `Scene ${index + 1}`,
@@ -398,10 +423,10 @@
         original_image_url: originalImage.split('?')[0],
         enhanced_images: storyState.enhancedImages || [],
         story_title: title,
-        story_cover: sceneImages[0]?.split('?')[0] || undefined, // Use first scene as cover
+        story_cover: sceneImages[0]?.split('?')[0] || undefined, // First image is cover
         cover_design: undefined,
         story_content: JSON.stringify(storyContent),
-        scene_images: sceneImages.map(url => url.split('?')[0]),
+        scene_images: sceneImages.slice(1).map(url => url.split('?')[0]), // Scenes 1-4 (skip cover)
         status: 'completed' as const,
         story_type: 'search' as const
       };
@@ -456,12 +481,15 @@
       specialAbility = sessionStorage.getItem('specialAbility');
       storyTitle = sessionStorage.getItem('storyTitle');
 
+      // Determine navigation context
+      const comingFromDashboard = sessionStorage.getItem("intersearch_resume_existing") === "true";
       // Check if we need to regenerate scenes (from Play Again button)
       const shouldRegenerate = sessionStorage.getItem("intersearch_regenerate") === "true";
       
-      if (shouldRegenerate) {
+      if (shouldRegenerate && !comingFromDashboard) {
         // Clear existing scene images
-        for (let i = 1; i <= 8; i++) {
+        sessionStorage.removeItem('intersearch_cover');
+        for (let i = 1; i <= 4; i++) {
           sessionStorage.removeItem(`intersearch_scene_${i}`);
         }
         // Clear the regeneration flag
@@ -476,24 +504,37 @@
       } else {
         // Check if images already exist in sessionStorage
         const existingImages: string[] = [];
-        for (let i = 1; i <= 8; i++) {
+        
+        // Check for cover
+        const coverStored = sessionStorage.getItem('intersearch_cover');
+        if (coverStored) {
+          existingImages.push(coverStored.split("?")[0]);
+        }
+        
+        // Check for scenes 1-4
+        for (let i = 1; i <= 4; i++) {
           const stored = sessionStorage.getItem(`intersearch_scene_${i}`);
           if (stored) {
             existingImages.push(stored.split("?")[0]);
           }
         }
 
-        if (existingImages.length === 8 && characterImageUrl) {
+        if (existingImages.length === 5 && characterImageUrl) {
           generatedImages = existingImages;
           currentSceneIndex = 0;
-        } else if (characterImageUrl && selectedWorld) {
-          // Generate new images
+        } else if (characterImageUrl && selectedWorld && !comingFromDashboard) {
+          // Only auto-generate when not explicitly resuming from dashboard
           generateAllImages();
         } else {
           // No character image or world selected, go back
           alert("Please complete character setup first");
           goto("/intersearch");
         }
+      }
+
+      // Clear the resume flag after handling
+      if (comingFromDashboard) {
+        sessionStorage.removeItem("intersearch_resume_existing");
       }
     }
   });
@@ -521,7 +562,8 @@
   }
 
   function handleMouseDown(event: MouseEvent) {
-    if (!imageWrapperRef || generating || generatedImages.length === 0) return;
+    // Disable selection for cover (index 0) - cover is not searchable
+    if (!imageWrapperRef || generating || generatedImages.length === 0 || currentSceneIndex === 0) return;
     
     const rect = imageWrapperRef.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -825,7 +867,7 @@
       if (!resizedCharacterUrl || !resizedCroppedUrl) {
         console.error('Failed to resize images for comparison');
         // Fallback to original URLs if resize fails
-        const response = await fetch('https://image-edit-five.vercel.app/compare-similarity', {
+        const response = await fetch('https://drawtopia-backend.vercel.app/compare-similarity', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -906,7 +948,7 @@
 
       console.log('Comparing resized images:', charUrlData.publicUrl, croppedUrlData.publicUrl);
       
-      const response = await fetch('https://image-edit-five.vercel.app/compare-similarity', {
+      const response = await fetch('https://drawtopia-backend.vercel.app/compare-similarity', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1079,7 +1121,7 @@
       <div class="generating-container">
         <div class="generating-spinner"></div>
         <div class="generating-text">
-          Generating your 4 adventure scenes...
+          Generating your cover and 4 adventure scenes...
         </div>
         <div class="generating-progress">This may take a few moments</div>
       </div>
@@ -1088,38 +1130,53 @@
         <div class="scene-image-container">
           <div 
             class="book-container"
+            class:cover-mode={currentSceneIndex === 0}
             bind:this={imageWrapperRef}
             on:mousedown={handleMouseDown}
             on:mousemove={handleMouseMove}
             on:mouseup={handleMouseUp}
             on:mouseleave={handleMouseUp}
-            role="application"
-            tabindex="0"
-            aria-label="Image selection area"
+            role={currentSceneIndex === 0 ? "img" : "application"}
+            tabindex={currentSceneIndex === 0 ? -1 : 0}
+            aria-label={currentSceneIndex === 0 ? "Cover image" : "Image selection area"}
           >
-            <!-- Mobile: Split into left and right halves -->
-            <div class="mobile-image-split">
-              <div class="mobile-image-half mobile-image-left">
+            {#if currentSceneIndex === 0}
+              <!-- Cover: Single image display -->
+              <div class="cover-image-container">
                 <img
+                  bind:this={imageRef}
                   src={generatedImages[currentSceneIndex]}
-                  alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
-                    currentSceneIndex
-                  ] || `Scene ${currentSceneIndex + 1} - Left`}
-                  class="scene-main-image"
+                  alt="Cover"
+                  class="cover-main-image"
                   draggable="false"
                 />
               </div>
-              <div class="mobile-image-half mobile-image-right">
-                <img
-                  src={generatedImages[currentSceneIndex]}
-                  alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
-                    currentSceneIndex
-                  ] || `Scene ${currentSceneIndex + 1} - Right`}
-                  class="scene-main-image"
-                  draggable="false"
-                />
+            {:else}
+              <!-- Scenes 1-4: Split into left and right halves -->
+              <div class="mobile-image-split">
+                <div class="mobile-image-half mobile-image-left">
+                  <img
+                    bind:this={imageRef}
+                    src={generatedImages[currentSceneIndex]}
+                    alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
+                      currentSceneIndex - 1
+                    ] || `Scene ${currentSceneIndex} - Left`}
+                    class="scene-main-image"
+                    draggable="false"
+                  />
+                </div>
+                <div class="mobile-image-half mobile-image-right">
+                  <img
+                    src={generatedImages[currentSceneIndex]}
+                    alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
+                      currentSceneIndex - 1
+                    ] || `Scene ${currentSceneIndex} - Right`}
+                    class="scene-main-image"
+                    draggable="false"
+                  />
+                </div>
               </div>
-            </div>
+            {/if}
             <div class="scene-control-buttons">
               <button class="notification" aria-label="Full Screen Preview">
                 <img src={fullscreen} alt="fullscreen" />
@@ -1243,6 +1300,8 @@
             ? "Show Results" 
             : currentSceneIndex === 0 
               ? "Start Scene 1" 
+              : currentSceneIndex === generatedImages.length - 1
+              ? "Show Results"
               : "Next Scene"}
       </button>
     </div>
@@ -1724,6 +1783,10 @@
     gap: 20px;
   }
 
+  .book-container.cover-mode {
+    cursor: default;
+  }
+
   .scene-main-image {
     display: block;
     max-width: 100%;
@@ -1735,6 +1798,29 @@
     pointer-events: none;
     position: relative;
     z-index: 1;
+  }
+
+  /* Cover Image Styles */
+  .cover-image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+  }
+
+  .cover-main-image {
+    display: block;
+    max-width: 100%;
+    max-height: 750px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
   /* Mobile image split container - hidden on desktop */
@@ -2243,6 +2329,18 @@
 
     .book-container {
       max-width: 100%;
+    }
+
+    .cover-image-container {
+      width: 100%;
+      padding: 0;
+    }
+
+    .cover-main-image {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      max-height: 70vh;
     }
 
     .mobile-image-split {
