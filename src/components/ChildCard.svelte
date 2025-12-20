@@ -2,10 +2,13 @@
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
   import { storyCreation } from "../lib/stores/storyCreation";
+  import { createEventDispatcher } from "svelte";
   import eye from "../assets/BlueEye.svg";
   import Plus from "../assets/Plus.svg";
 
   export let item: any;
+  
+  const dispatch = createEventDispatcher();
 
   // Get child name
   const getChildName = () => {
@@ -34,8 +37,7 @@
 
   // Handle "Edit" button click
   function handleEdit() {
-    // TODO: Implement edit functionality
-    console.log("Edit child:", item);
+    dispatch("editChild", { item });
   }
 
   // Handle "View Story" button click
@@ -46,25 +48,9 @@
 
   // Handle "New Story" button click
   function handleNewStory() {
-    const childId = item.id?.toString();
     const childName = getChildName();
-
-    if (!childId) {
-      console.error("Child ID is missing");
-      return;
-    }
-
-    // Store child info in sessionStorage
-    if (browser) {
-      sessionStorage.setItem("selectedChildProfileId", childId);
-      sessionStorage.setItem("selectedChildProfileName", childName);
-    }
-
-    // Update story creation store
-    storyCreation.setSelectedChild(childId, childName);
-
-    // Navigate to create-character/1
-    goto("/create-character/1");
+    // Emit event for parent to handle (parent may have different navigation logic)
+    dispatch("newStory", { name: childName, item });
   }
 </script>
 

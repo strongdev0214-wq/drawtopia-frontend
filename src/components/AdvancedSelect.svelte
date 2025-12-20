@@ -7,6 +7,7 @@
 	export let placeholder: string = "Select an option";
 	export let id: string = "advanced-select";
 	export let label: string = "";
+	export let width: string | undefined = undefined; // Optional width for dropdown list
 
 	let open = false;
 	let rootEl: HTMLDivElement | null = null;
@@ -65,7 +66,12 @@
 	</button>
 
 	{#if open}
-		<ul class="dropdown-list" role="listbox" aria-labelledby={id}>
+		<ul 
+			class="dropdown-list" 
+			role="listbox" 
+			aria-labelledby={id}
+			style={width ? `width: ${width};` : ''}
+		>
 			{#each options as option}
 				<li>
 					<button
@@ -120,6 +126,7 @@
 		position: absolute;
 		top: calc(100% + 8px);
 		width: 100%;
+		min-width: 100%;
 		background: #fff;
 		border: 1px solid #e6ebf3;
 		border-radius: 12px;

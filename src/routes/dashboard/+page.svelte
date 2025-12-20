@@ -13,9 +13,6 @@
   } from "../../lib/database/stories";
   import { supabase } from "../../lib/supabase";
   import { getGiftsForUser, type Gift } from "../../lib/database/gifts";
-  import ChildProfileComponent from "../../components/ChildProfileComponent.svelte";
-  import StoryLibraryComponent from "../../components/StoryLibraryComponent.svelte";
-  import usercircleplus from "../../assets/UserCirclePlus.svg";
   import magnifyingglass from "../../assets/MagnifyingGlass.svg";
   import caretdown from "../../assets/CaretDown.svg";
   import house from "../../assets/House.svg";
@@ -24,7 +21,6 @@
   import bookopen from "../../assets/BookOpen.svg";
   import gift from "../../assets/Gift.svg";
   import list from "../../assets/Sidebar.svg";
-  import plus from "../../assets/Plus.svg";
   import x from "../../assets/X.svg";
   import GiftTrackingComponent from "../../components/GiftTrackingComponent.svelte";
   import NotificationComponent from "../../components/NotificationComponent.svelte";
@@ -34,12 +30,13 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   import starIcon from "../../assets/OutlineStar.svg";
   import speakerIcon from "../../assets/OutlineHeadset.svg";
   import BookIcon from "../../assets/Book.svg";
-  import BookCard from "../../components/BookCard.svelte";
   import CharacterCard from "../../components/CharacterCard.svelte";
-  import ChildCard from "../../components/ChildCard.svelte";
-  import AdvancedSelect from "../../components/AdvancedSelect.svelte";
   import CharacterDetailsModal from "../../components/CharacterDetailsModal.svelte";
   import MobileDashboardComponent from "../../components/MobileDashboardComponent.svelte";
+  import HomeLibraryView from "../../components/HomeLibraryView.svelte";
+  import ChildProfilesView from "../../components/ChildProfilesView.svelte";
+  import StoryLibraryView from "../../components/StoryLibraryView.svelte";
+  import CharacterLibraryView from "../../components/CharacterLibraryView.svelte";
 
   // Sidebar library switch state
   let libraryView: "all" | "characters" | "children" = "all";
@@ -332,6 +329,8 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               story_title: story.story_title,
               user_name: story.user_name,
               child_profile_id: story.child_profile_id,
+              child_profiles: story.child_profiles,
+              adventure_type: story.adventure_type,
               scene_images: story.scene_images,
               story_content: story.story_content,
               story_type: story.story_type,
@@ -510,182 +509,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   };
 
   // Handle view book button click from BookCard
-  const handleViewBook = async (event: CustomEvent) => {
-    const bookInfo = event.detail;
-
-    console.log("==============================Book Info:", bookInfo);
-    
-    if (!bookInfo || !browser) {
-      console.error("Invalid book info or browser not available");
-      return;
-    }
-
-    try {
-      // Get story ID from the book info
-      const storyId = bookInfo.uid; 
-      
-      if (!storyId) {
-        console.error("Story ID not found in book info");
-        return;
-      }
-
-      // Fetch the story record from Supabase
-      const { data: story, error: fetchError } = await supabase
-        .from('stories')
-        .select('*')
-        .eq('uid', storyId)
-        .single();
-
-      if (fetchError) {
-        console.error("Error fetching story from Supabase:", fetchError);
-        alert("Failed to load story. Please try again.");
-        return;
-      }
-
-      if (!story) {
-        console.error("Story not found in database");
-        alert("Story not found.");
-        return;
-      }
-
-      const storyType = (story.story_type || "").toLowerCase();
-
-      // Store story data in sessionStorage for the preview or intersearch page
-      if (story.story_title) {
-        sessionStorage.setItem("storyTitle", story.story_title);
-        sessionStorage.setItem("story_title", story.story_title);
-      }
-
-      // Handle search adventure stories
-      if (storyType === "search") {
-        // Store cover image - priority: story_cover field, then story_content.cover
-        let coverImage: string | null = null;
-        if (story.story_cover) {
-          coverImage = story.story_cover;
-        } else if (story.story_content) {
-          try {
-            const storyContent = JSON.parse(story.story_content);
-            if (storyContent.cover) {
-              coverImage = storyContent.cover;
-            }
-          } catch (parseError) {
-            console.error("Error parsing story content for cover:", parseError);
-          }
-        }
-        
-        if (coverImage) {
-          // Remove query parameters if any
-          const cleanCoverUrl = coverImage.split("?")[0];
-          sessionStorage.setItem('intersearch_cover', cleanCoverUrl);
-        }
-
-        // Store scene images (scenes 1-4)
-        // scene_images array contains only the 4 scenes, not the cover
-        if (story.scene_images && Array.isArray(story.scene_images)) {
-          story.scene_images.forEach((imageUrl: string, index: number) => {
-            // Index 0 = scene 1, index 1 = scene 2, etc.
-            const sceneNumber = index + 1;
-            const cleanSceneUrl = imageUrl.split("?")[0];
-            sessionStorage.setItem(`intersearch_scene_${sceneNumber}`, cleanSceneUrl);
-          });
-        } else if (story.story_content) {
-          // Fallback: try to get scenes from story_content
-          try {
-            const storyContent = JSON.parse(story.story_content);
-            if (storyContent.scenes && Array.isArray(storyContent.scenes)) {
-              storyContent.scenes.forEach((scene: any, index: number) => {
-                const sceneNumber = scene.sceneNumber || (index + 1);
-                const sceneImageUrl = scene.sceneImage || scene.scene_image;
-                if (sceneImageUrl) {
-                  const cleanSceneUrl = sceneImageUrl.split("?")[0];
-                  sessionStorage.setItem(`intersearch_scene_${sceneNumber}`, cleanSceneUrl);
-                }
-              });
-            }
-          } catch (parseError) {
-            console.error("Error parsing story content for scenes:", parseError);
-          }
-        }
-
-        // Store character and world information for intersearch page
-        if (story.character_name) {
-          sessionStorage.setItem('characterName', story.character_name);
-        }
-        if (story.character_type) {
-          sessionStorage.setItem('selectedCharacterType', story.character_type);
-        }
-        if (story.special_ability) {
-          sessionStorage.setItem('specialAbility', story.special_ability);
-        }
-        if (story.character_style) {
-          sessionStorage.setItem('selectedStyle', story.character_style);
-        }
-        if (story.original_image_url) {
-          sessionStorage.setItem('characterImageUrl', story.original_image_url);
-        }
-        
-        // Map story_world to intersearch format
-        if (story.story_world) {
-          const worldMap: { [key: string]: string } = {
-            'forest': 'enchanted-forest',
-            'space': 'outer-space',
-            'underwater': 'underwater-kingdom'
-          };
-          const intersearchWorld = worldMap[story.story_world] || story.story_world;
-          sessionStorage.setItem('intersearch_world', intersearchWorld);
-        }
-
-        // Get difficulty from story_content if available
-        if (story.story_content) {
-          try {
-            const storyContent = JSON.parse(story.story_content);
-            if (storyContent.difficulty) {
-              sessionStorage.setItem('intersearch_difficulty', storyContent.difficulty);
-            }
-          } catch (parseError) {
-            // Ignore parse errors for difficulty
-          }
-        }
-
-        // Coming from dashboard, we want to resume existing intersearch scenes
-        sessionStorage.setItem("intersearch_resume_existing", "true");
-        goto("/intersearch/1");
-      } else {
-        // Handle regular story books
-        // Parse and process story content
-        if (story.story_content) {
-          try {
-            let storyPages = JSON.parse(story.story_content);
-            
-            // Handle different story content structures
-            if (storyPages.pages && Array.isArray(storyPages.pages)) {
-              storyPages = storyPages.pages.map((page: any, index: number) => {
-                return {
-                  pageNumber: page.pageNumber,
-                  text: page.text,
-                  scene: page.sceneImage
-                }
-              });
-              sessionStorage.setItem('storyPages', JSON.stringify(storyPages));
-            }
-          } catch (parseError) {
-            console.error("Error parsing story content:", parseError);
-          }
-        }
-
-        // Store additional story data for navigation
-        if (story.story_cover) {
-          sessionStorage.setItem("story_cover", story.story_cover);
-        }
-
-        // Default behaviour: go to preview page
-        goto("/preview/default");
-      }
-    } catch (error) {
-      console.error("Error handling view book:", error);
-      alert("An error occurred while loading the story. Please try again.");
-    }
-  };
+  
 
   // Fetch profiles, stories, and gifts when component mounts and user is available
   onMount(() => {
@@ -1000,469 +824,142 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     </div>
     <div class="sidebar">
       {#if activeMenu === "home"}
-        <div class="frame-1410104150">
-          <div class="frame-2147227615">
-            <div class="frame-2147227616">
-              <div class="frame-2147227614">
-                <div class="your-library">
-                  <span class="yourlibrary_span">Your Library</span>
-                </div>
-                <div class="switch" role="tablist" aria-label="Your Library view">
-                  <div
-                    class="button"
-                    class:active={libraryView === "all"}
-                    role="tab"
-                    aria-selected={libraryView === "all"}
-                    tabindex="0"
-                    on:click={() => setLibraryView("all")}
-                    on:keydown={(e) =>
-                      (e.key === "Enter" || e.key === " ") &&
-                      setLibraryView("all")}
-                  >
-                    <div><span class="allbooks_span">All Books</span></div>
-                  </div>
-                  <div
-                    class="button_01"
-                    class:active={libraryView === "characters"}
-                    role="tab"
-                    aria-selected={libraryView === "characters"}
-                    tabindex="0"
-                    on:click={() => setLibraryView("characters")}
-                    on:keydown={(e) =>
-                      (e.key === "Enter" || e.key === " ") &&
-                      setLibraryView("characters")}
-                  >
-                    <div><span class="characters_span">Characters</span></div>
-                  </div>
-                  <div
-                    class="button_02"
-                    class:active={libraryView === "children"}
-                    role="tab"
-                    aria-selected={libraryView === "children"}
-                    tabindex="0"
-                    on:click={() => setLibraryView("children")}
-                    on:keydown={(e) =>
-                      (e.key === "Enter" || e.key === " ") &&
-                      setLibraryView("children")}
-                  >
-                    <div><span class="children_span">Children</span></div>
-                  </div>
-                </div>
-              </div>
-              <div class="frame-1410104245" on:click={() => goto("/create-character/1")} role="button" tabindex="0" on:keydown={(e) => (e.key === "Enter" || e.key === " ") && goto("/create-character/1")}>
-                <div class="ellipse-1415"></div>
-                <div class="plus">
-                  <img src={plus} alt="plus" />
-                </div>
-                <div class="new-book">
-                  <span class="newbook_span">New Book</span>
-                </div>
-              </div>
-            </div>
-            <div class="rectangle-263"></div>
-            <div class="frame-1410103899-add-children">
-              {#if libraryView === "children"}
-                <div class="frame-1410104245-add-children" on:click={handleAddChildren} role="button" tabindex="0" on:keydown={(e) => (e.key === "Enter" || e.key === " ") && handleAddChildren()}>
-                  <div class="usercircleplus-add-children">
-                    <img src={usercircleplus} alt="add children" class="usercircleplus-icon" />
-                  </div>
-                  <div class="add-children"><span class="addchildren_span">Add Children</span></div>
-                  <div class="ellipse-1415-add-children"></div>
-                </div>
-              {/if}
-              <div class="frame-1410103899">
-                  <div class="dropdown-filters">
-                    <div class="filter-select-wrapper">
-                      <AdvancedSelect
-                        options={formatOptions}
-                        bind:selectedOption={selectedFormat}
-                        placeholder="All Formats"
-                        id="format-select"
-                      />
-                    </div>
-                    <div class="filter-select-wrapper">
-                      <AdvancedSelect
-                        options={childrenOptions}
-                        bind:selectedOption={selectedChild}
-                        placeholder="All Children"
-                        id="child-select"
-                      />
-                    </div>
-                    <div class="filter-select-wrapper">
-                      <AdvancedSelect
-                        options={statusOptions}
-                        bind:selectedOption={selectedStatus}
-                        placeholder="All Status"
-                        id="status-select"
-                      />
-                    </div>
-                  </div>
-              </div>
-            </div>
-          </div>
-          <div class="frame-1410104154">
-            <div class="frame-1410103894">
-              {#if libraryView === "all"}
-                {#if loadingStories}
-                  <div class="loading-message">Loading books...</div>
-                {:else if storiesError}
-                  <div class="error-message">{storiesError}</div>
-                {:else if stories.length === 0}
-                  <div class="empty-message">No books found</div>
-                {:else}
-                  {#if browser}
-                    <div class="debug-info" style="grid-column: 1 / -1; padding: 8px; background: #e3f2fd; border-radius: 4px; margin-bottom: 8px; font-size: 12px; color: #1976d2; border: 1px solid #90caf9;">
-                      📊 Showing {stories.length} {stories.length === 1 ? 'story' : 'stories'} from Supabase database
-                    </div>
-                  {/if}
-                  {#each stories as story (story.id)}
-                    <BookCard item={story} on:viewBook={handleViewBook} />
-                  {/each}
-                {/if}
-              {:else if libraryView === "characters"}
-                {#if loadingStories}
-                  <div class="loading-message">Loading characters...</div>
-                {:else if characters.length === 0}
-                  <div class="empty-message">No characters found</div>
-                {:else}
-                  {#each characters as character (character.id)}
-                    <CharacterCard 
-                      item={character} 
-                      booksCount={character.booksCount || 0}
-                      on:preview={handleCharacterPreview}
-                    />
-                  {/each}
-                {/if}
-              {:else if libraryView === "children"}
-                {#if loading}
-                  <div class="loading-message">Loading children...</div>
-                {:else if error}
-                  <div class="error-message">{error}</div>
-                {:else if childProfiles.length === 0}
-                  <div class="empty-message">No children found</div>
-                {:else}
-                  {#each childProfiles as child (child.id)}
-                    <ChildCard item={child} />
-                  {/each}
-                {/if}
-              {/if}
-            </div>
-          </div>
-        </div>
+        <HomeLibraryView {handleAddChildren} {handleCharacterPreview} />
       {/if}
         
-        <!-- Reading Stats Component -->
-        {#if activeMenu === "home" && libraryView === "all"}
-        <div class="reading-stats-container">
-          <div class="reading-stats-header-section">
-            <div class="reading-stats-header-wrapper">
-              <div class="reading-stats-title-section">
-                <div class="reading-stats-title">
-                  <span class="reading-stats-title-text">Your Reading Stats </span>
-                </div>
+      <!-- Reading Stats Component -->
+      {#if activeMenu === "home" && libraryView === "all"}
+      <div class="reading-stats-container">
+        <div class="reading-stats-header-section">
+          <div class="reading-stats-header-wrapper">
+            <div class="reading-stats-title-section">
+              <div class="reading-stats-title">
+                <span class="reading-stats-title-text">Your Reading Stats </span>
               </div>
             </div>
-            <div class="reading-stats-divider"></div>
           </div>
-          <div class="reading-stats-cards">
-            <div class="reading-stats-card-story">
-              <div class="reading-stats-card-header">
-                <div class="reading-stats-icon-wrapper">
-                  <div class="reading-stats-icon-bg">
-                    <div class="reading-stats-book-icon">
-                      <img src={BookIcon} alt="Book" class="book-icon" />
-                    </div>
-                    <div class="reading-stats-icon-glow"></div>
+          <div class="reading-stats-divider"></div>
+        </div>
+        <div class="reading-stats-cards">
+          <div class="reading-stats-card-story">
+            <div class="reading-stats-card-header">
+              <div class="reading-stats-icon-wrapper">
+                <div class="reading-stats-icon-bg">
+                  <div class="reading-stats-book-icon">
+                    <img src={BookIcon} alt="Book" class="book-icon" />
                   </div>
-                  <div class="reading-stats-card-title-group">
-                    <div class="reading-stats-card-label">
-                      <span class="reading-stats-card-label-text">Story Adventure</span>
-                    </div>
-                    <div class="reading-stats-card-value">
-                      <span class="reading-stats-card-value-text">8 Books</span>
-                    </div>
+                  <div class="reading-stats-icon-glow"></div>
+                </div>
+                <div class="reading-stats-card-title-group">
+                  <div class="reading-stats-card-label">
+                    <span class="reading-stats-card-label-text">Story Adventure</span>
                   </div>
-                </div>
-              </div>
-              <div class="reading-stats-card-divider"></div>
-              <div class="reading-stats-stat-item">
-                <div class="reading-stats-stat-icon">
-                  <img src={bookopen} alt="Book Open" />
-                </div>
-                <div class="reading-stats-stat-text">
-                  <span class="reading-stats-stat-label">Total reading time: </span>
-                  <span class="reading-stats-stat-value">1h 23m </span>
-                </div>
-              </div>
-              <div class="reading-stats-stat-item">
-                <div class="reading-stats-stat-icon">
-                  <img src={speakerIcon} alt="Audio" />
-                </div>
-                <div class="reading-stats-stat-text">
-                  <span class="reading-stats-stat-label">Audio listened: </span>
-                  <span class="reading-stats-stat-value">4 Books</span>
+                  <div class="reading-stats-card-value">
+                    <span class="reading-stats-card-value-text">8 Books</span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="reading-stats-card-search">
-              <div class="reading-stats-card-header">
-                <div class="reading-stats-icon-wrapper">
-                  <div class="reading-stats-icon-bg">
-                    <div class="reading-stats-book-icon">
-                      <img src={BookIcon} alt="Book" />
-                    </div>
-                    <div class="reading-stats-icon-glow"></div>
+            <div class="reading-stats-card-divider"></div>
+            <div class="reading-stats-stat-item">
+              <div class="reading-stats-stat-icon">
+                <img src={bookopen} alt="Book Open" />
+              </div>
+              <div class="reading-stats-stat-text">
+                <span class="reading-stats-stat-label">Total reading time: </span>
+                <span class="reading-stats-stat-value">1h 23m </span>
+              </div>
+            </div>
+            <div class="reading-stats-stat-item">
+              <div class="reading-stats-stat-icon">
+                <img src={speakerIcon} alt="Audio" />
+              </div>
+              <div class="reading-stats-stat-text">
+                <span class="reading-stats-stat-label">Audio listened: </span>
+                <span class="reading-stats-stat-value">4 Books</span>
+              </div>
+            </div>
+          </div>
+          <div class="reading-stats-card-search">
+            <div class="reading-stats-card-header">
+              <div class="reading-stats-icon-wrapper">
+                <div class="reading-stats-icon-bg">
+                  <div class="reading-stats-book-icon">
+                    <img src={BookIcon} alt="Book" />
                   </div>
-                  <div class="reading-stats-card-title-group">
-                    <div class="reading-stats-card-label">
-                      <span class="reading-stats-card-label-text">Interactive Search</span>
-                    </div>
-                    <div class="reading-stats-card-value">
-                      <span class="reading-stats-card-value-text">3 Books</span>
-                    </div>
+                  <div class="reading-stats-icon-glow"></div>
+                </div>
+                <div class="reading-stats-card-title-group">
+                  <div class="reading-stats-card-label">
+                    <span class="reading-stats-card-label-text">Interactive Search</span>
+                  </div>
+                  <div class="reading-stats-card-value">
+                    <span class="reading-stats-card-value-text">3 Books</span>
                   </div>
                 </div>
               </div>
-              <div class="reading-stats-card-divider"></div>
-              <div class="reading-stats-stat-item">
-                <div class="reading-stats-stat-icon">
-                  <img src={bookopen} alt="Book Open" />
-                </div>
-                <div class="reading-stats-stat-text">
-                  <span class="reading-stats-stat-label">Total reading time: </span>
-                  <span class="reading-stats-stat-value">2h 23m </span>
-                </div>
+            </div>
+            <div class="reading-stats-card-divider"></div>
+            <div class="reading-stats-stat-item">
+              <div class="reading-stats-stat-icon">
+                <img src={bookopen} alt="Book Open" />
               </div>
-              <div class="reading-stats-stat-item">
-                <div class="reading-stats-stat-icon">
-                  <img src={starIcon} alt="Star" />
-                </div>
-                <div class="reading-stats-stat-text">
-                  <span class="reading-stats-stat-label">Average stars : </span>
-                  <span class="reading-stats-stat-value">2,3/5</span>
-                </div>
+              <div class="reading-stats-stat-text">
+                <span class="reading-stats-stat-label">Total reading time: </span>
+                <span class="reading-stats-stat-value">2h 23m </span>
               </div>
-              <div class="reading-stats-stat-item">
-                <div class="reading-stats-stat-icon">
-                  <img src={starIcon} alt="Star" />
-                </div>
-                <div class="reading-stats-stat-text">
-                  <span class="reading-stats-stat-label">Average Hints : </span>
-                  <span class="reading-stats-stat-value">1.2 Per Scene</span>
-                </div>
+            </div>
+            <div class="reading-stats-stat-item">
+              <div class="reading-stats-stat-icon">
+                <img src={starIcon} alt="Star" />
+              </div>
+              <div class="reading-stats-stat-text">
+                <span class="reading-stats-stat-label">Average stars : </span>
+                <span class="reading-stats-stat-value">2,3/5</span>
+              </div>
+            </div>
+            <div class="reading-stats-stat-item">
+              <div class="reading-stats-stat-icon">
+                <img src={starIcon} alt="Star" />
+              </div>
+              <div class="reading-stats-stat-text">
+                <span class="reading-stats-stat-label">Average Hints : </span>
+                <span class="reading-stats-stat-value">1.2 Per Scene</span>
               </div>
             </div>
           </div>
         </div>
-        {/if}
+      </div>
+      {/if}
+      
       {#if activeMenu === "child-profiles"}
-        <div class="frame-1410104149">
-          <div class="frame-1410104154">
-            <div class="frame-1410104155">
-              <div class="frame-1410104151">
-                <div class="child-profiles_01">
-                  <span class="childprofiles_01_span">Child Profiles</span>
-                </div>
-                <div class="manage-your-childrens-story-preferences-and-progress">
-                  <span
-                    class="manageyourchildrensstorypreferencesandprogress_span"
-                    >Manage your children's story preferences and progress</span
-                  >
-                </div>
-              </div>
-              <div
-                class="frame-1410103868"
-                on:click={handleAddChildren}
-                on:keydown={(e) => e.key === "Enter" && handleAddChildren()}
-                role="button"
-                tabindex="0"
-              >
-                <img src={usercircleplus} alt="plus" class="plus" />
-                <div class="sub-menu">
-                  <div class="add-children">
-                    <span class="addchildren_span">Add Children</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="child-profiles-grid">
-              {#if loading}
-                <div class="loading-state">
-                  <div class="loading-spinner"></div>
-                  <p class="loading-text">Loading child profiles...</p>
-                </div>
-              {:else if error}
-                <div class="error-state">
-                  <p class="error-text">{error}</p>
-                  <button
-                    class="retry-button"
-                    on:click={() => $user?.id && fetchChildProfiles($user.id)}
-                  >
-                    Try Again
-                  </button>
-                </div>
-              {:else if childProfiles.length === 0}
-                <div class="empty-state">
-                  <p class="empty-text">No child profiles found.</p>
-                  <p class="empty-subtext">
-                    Add your first child profile to get started!
-                  </p>
-                </div>
-              {:else}
-                {#each childProfiles as c}
-                  <ChildProfileComponent
-                    name={c.name}
-                    ageLabel={c.ageLabel}
-                    avatarUrl={c.avatarUrl}
-                    storiesCreatedText={c.storiesCreatedText}
-                    lastStory={c.lastStory}
-                    on:newStory={handleNewStory}
-                    on:editChild={() =>
-                      goto(
-                        `/create-child-profile/edit?id=${c.id || ""}&name=${encodeURIComponent(c.name)}`,
-                      )}
-                  />
-                {/each}
-              {/if}
-            </div>
-          </div>
-        </div>
+        <ChildProfilesView
+          {childProfiles}
+          {loading}
+          {error}
+          {handleAddChildren}
+          {handleNewStory}
+          {fetchChildProfiles}
+        />
       {/if}
       
       {#if activeMenu === "story-library"}
-        <div class="frame-1410104150_01">
-          <div class="frame-1410104154_01">
-            <div class="frame-1410104155_01">
-              <div class="frame-1410104151_01">
-                <div class="story-library_01">
-                  <span class="storylibrary_01_span">Story Library</span>
-                </div>
-                <div class="browse-and-manage-all-created-stories">
-                  <span class="browseandmanageallcreatedstories_span"
-                    >Browse and manage all created stories</span
-                  >
-                </div>
-              </div>
-              <div class="frame-1410103899">
-                <div class="frame-1410103898">
-                  <img
-                    src={magnifyingglass}
-                    alt="magnifyingglass"
-                    class="magnifyingglass"
-                  />
-                  <div class="search-stories">
-                    <span class="searchstories_span">Search Stories</span>
-                  </div>
-                </div>
-                <div class="dropdown">
-                  <div class="dropdown_01">
-                    <div class="all-stories">
-                      <span class="allstories_span">All Stories</span>
-                    </div>
-                    <img src={caretdown} alt="caretdown" class="caretdown" />
-                  </div>
-                  <div class="dropdown_02">
-                    <div class="newest-first">
-                      <span class="newestfirst_span">Newest First</span>
-                    </div>
-                    <img src={caretdown} alt="caretdown" class="caretdown" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="stories-grid">
-              {#if loadingStories}
-                <div class="loading-state">
-                  <div class="loading-spinner"></div>
-                  <p class="loading-text">Loading stories...</p>
-                </div>
-              {:else if storiesError}
-                <div class="error-state">
-                  <p class="error-text">{storiesError}</p>
-                  <button
-                    class="retry-button"
-                    on:click={() => $user?.id && fetchStories($user.id)}
-                  >
-                    Try Again
-                  </button>
-                </div>
-              {:else if stories.length === 0}
-                <div class="empty-state">
-                  <p class="empty-text">No stories found.</p>
-                  <p class="empty-subtext">
-                    Create your first story to get started!
-                  </p>
-                </div>
-              {:else}
-                {#each stories as s}
-                  <StoryLibraryComponent
-                    title={s.title}
-                    author={s.author}
-                    status={s.status}
-                    createdDate={s.createdDate}
-                    durationText={s.durationText}
-                    occasion={s.occasion}
-                    imageUrl={s.imageUrl}
-                  />
-                {/each}
-              {/if}
-            </div>
-          </div>
-        </div>
+        <StoryLibraryView
+          {stories}
+          {loadingStories}
+          {storiesError}
+          {fetchStories}
+          {childProfiles}
+        />
       {/if}
 
       {#if activeMenu === "characters"}
-        <div class="frame-1410104150_01">
-          <div class="frame-1410104154_01">
-            <div class="frame-1410104155_01">
-              <div class="frame-1410104151_01">
-                <div class="story-library_01">
-                  <span class="storylibrary_01_span">Your Character Library</span>
-                </div>
-                <div class="browse-and-manage-all-created-stories">
-                  <span class="browseandmanageallcreatedstories_span">Select a character to use in your new book</span>
-                </div>
-              </div>
-              <div class="frame-1410103899">
-                <div class="frame-1410103898">
-                  <img
-                    src={magnifyingglass}
-                    alt="magnifyingglass"
-                    class="magnifyingglass"
-                  />
-                  <div class="search-stories">
-                    <span class="searchstories_span">Search Characters</span>
-                  </div>
-                </div>
-                <div class="dropdown">
-                  <div class="dropdown_01">
-                    <div class="all-stories">
-                      <span class="allstories_span">All Characters</span>
-                    </div>
-                    <img src={caretdown} alt="caretdown" class="caretdown" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="frame-1410103894">
-              {#if loading}
-                <div class="loading-message">Loading characters...</div>
-              {:else if error}
-                <div class="error-message">{error}</div>
-              {:else if characters.length === 0}
-                <div class="empty-message">No characters found</div>
-              {:else}
-                {#each characters as character}
-                  <CharacterCard 
-                    item={character} 
-                    booksCount={character.booksCount || 0}
-                    on:characterPreview={handleCharacterPreview}
-                  />
-                {/each}
-              {/if}
-            </div>
-          </div>
-        </div>
+        <CharacterLibraryView
+          {characters}
+          {loading}
+          {error}
+          handleCharacterPreview={handleCharacterPreview}
+        />
       {/if}
       
       {#if activeMenu === "gift-tracking"}
@@ -1693,113 +1190,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     align-self: stretch;
   }
 
-  .childprofiles_01_span {
-    color: black;
-    font-size: 24px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 33.6px;
-    word-wrap: break-word;
-  }
-
-  .child-profiles_01 {
-    align-self: stretch;
-  }
-
-  .manageyourchildrensstorypreferencesandprogress_span {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .manage-your-childrens-story-preferences-and-progress {
-    align-self: stretch;
-    height: 100%;
-  }
-
-  .addchildren_span {
-    color: white;
-    font-size: 18px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 25.20px;
-    word-wrap: break-word;
-  }
-
-  .add-children {
-    text-align: center;
-  }
-
-  .storylibrary_01_span {
-    color: black;
-    font-size: 24px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 33.6px;
-    word-wrap: break-word;
-  }
-
-  .story-library_01 {
-    align-self: stretch;
-  }
-
-  .browseandmanageallcreatedstories_span {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .browse-and-manage-all-created-stories {
-    align-self: stretch;
-    height: 26px;
-  }
-
-  .searchstories_span {
-    color: #727272;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .search-stories {
-    text-align: center;
-  }
-
-  .allstories_span {
-    color: black;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .all-stories {
-    text-align: center;
-    width: max-content;
-  }
-
-  .newestfirst_span {
-    color: black;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .newest-first {
-    text-align: center;
-    width: max-content;
-  }
 
   .sidebargrouping-label {
     align-self: stretch;
@@ -1826,31 +1216,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     justify-content: flex-start;
     align-items: flex-start;
     gap: 2px;
-    display: inline-flex;
-  }
-
-  .frame-1410104151 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .sub-menu {
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    display: flex;
-  }
-
-  .frame-1410104151_01 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 4px;
     display: inline-flex;
   }
 
@@ -1949,13 +1314,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     overflow: hidden;
   }
 
-  .magnifyingglass {
-    width: 24px;
-    height: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-
   .sidebarheader {
     width: 260px;
     height: 87px;
@@ -2003,73 +1361,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     display: flex;
   }
 
-  .frame-1410103868 {
-    height: 49px;
-    padding-left: 16px;
-    padding-right: 16px;
-    padding-top: 4px;
-    padding-bottom: 4px;
-    background: #438bff;
-    border-radius: 12px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    display: flex;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .frame-1410103868:hover {
-    background: #3b7ce6;
-  }
-
-  .frame-1410103898 {
-    width: 347px;
-    padding-left: 16px;
-    padding-right: 16px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    background: #f8fafb;
-    border-radius: 20px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 10px;
-    display: flex;
-  }
-
-  .dropdown_01 {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    padding-left: 24px;
-    padding-right: 12px;
-    background: white;
-    border-radius: 20px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 4px;
-    display: flex;
-  }
-
-  .dropdown_02 {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    padding-left: 24px;
-    padding-right: 12px;
-    background: white;
-    border-radius: 20px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 4px;
-    display: flex;
-  }
 
   .sidebar-menu-parent {
     align-self: stretch;
@@ -2109,21 +1400,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     align-items: center;
     gap: 12px;
     display: inline-flex;
-  }
-
-  .frame-1410104155 {
-    align-self: stretch;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .dropdown {
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: flex;
   }
 
   .sidebarheader_01 {
@@ -2229,13 +1505,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     pointer-events: none;
   }
 
-  .frame-1410103899 {
-    width: 662px;
-    justify-content: space-between;
-    align-items: center;
-    display: flex;
-  }
-
   .sidebarpenaksir-kasir {
     width: 100%;
     height: 91px;
@@ -2255,22 +1524,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     display: flex;
   }
 
-  .frame-1410104155_01 {
-    align-self: stretch;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .stories-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 400px));
-    gap: 16px;
-    width: 100%;
-    justify-content: start;
-  }
-
   .content {
     width: 260px;
     height: 927px;
@@ -2286,58 +1539,11 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     display: flex;
   }
 
-  .child-profiles-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
-    gap: 16px;
-    width: 100%;
-  }
-
-  .frame-1410104154_01 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 24px;
-    display: inline-flex;
-  }
-
   .navigation {
     height: 1024px;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
-    display: inline-flex;
-  }
-
-  .frame-1410104154 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 24px;
-    display: inline-flex;
-  }
-
-  .frame-1410104150_01 {
-    align-self: stretch;
-    padding: 16px;
-    background: white;
-    border-radius: 8px;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .frame-1410104149 {
-    align-self: stretch;
-    padding: 16px;
-    background: white;
-    border-radius: 8px;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
     display: inline-flex;
   }
 
@@ -2350,15 +1556,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     align-items: flex-start;
     gap: 24px;
     display: flex;
-  }
-
-  .frame-1410104150 {
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    display: inline-flex;
-    width: 100%;
-    padding: 32px;
   }
 
   .frame-1410104150_02 {
@@ -2407,10 +1604,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
       display: none;
     }
 
-    .frame-1410104150 {
-      width: 100%;
-    }
-
     .sidebar {
       width: 100%;
       padding: 0px;
@@ -2438,109 +1631,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
       font-size: 16px;
       line-height: 22.4px;
       text-align: center;
-    }
-
-    .childprofiles_01_span {
-      font-size: 20px;
-      line-height: 28px;
-    }
-
-    .storylibrary_01_span {
-      font-size: 20px;
-      line-height: 28px;
-    }
-
-    .manageyourchildrensstorypreferencesandprogress_span {
-      font-size: 14px;
-      line-height: 19.6px;
-    }
-
-    .browseandmanageallcreatedstories_span {
-      font-size: 14px;
-      line-height: 19.6px;
-    }
-
-    .child-profiles-grid {
-      grid-template-columns: 1fr;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .stories-grid {
-      grid-template-columns: 1fr;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .frame-1410103868 {
-      width: 100%;
-      height: 49px;
-      padding-left: 16px;
-      padding-right: 16px;
-      padding-top: 4px;
-      padding-bottom: 4px;
-    }
-
-    .frame-1410103899 {
-      width: 100%;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .dropdown-filters {
-      flex-direction: column;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .filter-select-wrapper {
-      width: 100%;
-      
-    }
-
-    .frame-1410103898 {
-      width: 100%;
-    }
-
-    .dropdown {
-      width: 100%;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .dropdown_01,
-    .dropdown_02 {
-      width: 100%;
-      justify-content: center;
-    }
-
-    .frame-1410104149 {
-      padding: 12px;
-    }
-
-    .frame-1410104150_01 {
-      padding: 12px;
-    }
-
-    .frame-1410104154 {
-      gap: 16px;
-    }
-
-    .frame-1410104154_01 {
-      gap: 16px;
-      width: 100%;
-    }
-
-    .frame-1410104155 {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .frame-1410104155_01 {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
     }
 
     .heading {
@@ -2687,127 +1777,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     }
   }
 
-  /* Loading, Error, and Empty States */
-  .loading-state,
-  .error-state,
-  .empty-state {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
-    text-align: center;
-  }
-
-  .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #438bff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 16px;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-
-  .loading-text {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    margin: 0;
-  }
-
-  .error-text {
-    color: #dc2626;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    margin: 0 0 16px 0;
-  }
-
-  .retry-button {
-    padding: 8px 16px;
-    background: #438bff;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: Quicksand;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .retry-button:hover {
-    background: #3b7ce6;
-  }
-
-  .empty-text {
-    color: #666d80;
-    font-size: 18px;
-    font-family: Quicksand;
-    font-weight: 600;
-    margin: 0 0 8px 0;
-  }
-
-  .empty-subtext {
-    color: #90a1b9;
-    font-size: 14px;
-    font-family: Quicksand;
-    font-weight: 400;
-    margin: 0;
-  }
-
-  .yourlibrary_span {
-    color: black;
-    font-size: 24px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 28.8px;
-    word-wrap: break-word;
-  }
-
-  .your-library {
-    text-align: center;
-  }
-
-  .allbooks_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .characters_span {
-    color: #727272;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .children_span {
-    color: #727272;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
   .ellipse-1415 {
     width: 248px;
     height: 114px;
@@ -2822,99 +1791,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     border-radius: 9999px;
   }
 
-  .newbook_span {
-    color: white;
-    font-size: 18px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 25.2px;
-    word-wrap: break-word;
-  }
-
-  .new-book {
-    text-align: center;
-  }
-
-  .rectangle-263 {
-    align-self: stretch;
-    height: 1px;
-    background: #ededed;
-  }
-
-  .button {
-    padding-left: 22px;
-    padding-right: 22px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    border-radius: 8px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  /* Library switch active/idle styles */
-  .switch .button,
-  .switch .button_01,
-  .switch .button_02 {
-    border-radius: 12px;
-    cursor: pointer;
-  }
-  .switch .button.active,
-  .switch .button_01.active,
-  .switch .button_02.active {
-    background: white;
-  }
-  /* Make only the active tab text dark */
-  .switch .button .allbooks_span,
-  .switch .button_01 .characters_span,
-  .switch .button_02 .children_span {
-    color: #727272;
-  }
-  .switch .button.active .allbooks_span,
-  .switch .button_01.active .characters_span,
-  .switch .button_02.active .children_span {
-    color: #141414;
-  }
-
-  .button_01 {
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    border-radius: 8px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .button_02 {
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    border-radius: 8px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .sub-menu {
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    display: flex;
-  }
-
-  .plus {
-    width: 24px;
-    height: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-
   .caretdown {
     width: 24px;
     height: 24px;
@@ -2922,218 +1798,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     overflow: hidden;
   }
 
-  .magnifyingglass {
-    width: 16px;
-    height: 16px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .switch {
-    width: 371px;
-    padding: 4px;
-    background: #eceff3;
-    border-radius: 8px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .frame-1410104245 {
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    position: relative;
-    background: #438bff;
-    overflow: hidden;
-    border-radius: 12px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-    cursor: pointer;
-  }
-
-  .dropdown_01 {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    padding-left: 24px;
-    padding-right: 12px;
-    background: white;
-    border-radius: 20px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .dropdown_02 {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    padding-left: 24px;
-    padding-right: 12px;
-    background: white;
-    border-radius: 20px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .frame-2147227614 {
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 24px;
-    display: inline-flex;
-  }
-
-  .dropdown {
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: flex;
-  }
-
-  .frame-2147227616 {
-    align-self: stretch;
-    justify-content: space-between;
-    align-items: flex-end;
-    display: inline-flex;
-  }
-
-  .frame-1410103899 {
-    justify-content: flex-start;
-    align-items: center;
-    gap: 32px;
-    display: inline-flex;
-  }
-
-  .dropdown-filters {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-  }
-
-  .filter-select-wrapper {
-    flex: 1;
-    min-width: 250px;
-  }
-
-  .filter-select-wrapper :global(.container) {
-    width: 100%;
-  }
-
-  .filter-select-wrapper :global(.dropdown) {
-    padding: 12px 12px 12px 24px;
-    height: auto;
-    min-height: 48px;
-    background: white;
-    border: 1px solid #dcdcdc;
-    border-radius: 20px;
-    box-shadow: none;
-  }
-
-  .filter-select-wrapper :global(.selected-text) {
-    color: black;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 22.4px;
-  }
-
-  .filter-select-wrapper :global(.icon) {
-    width: 24px;
-    height: 24px;
-    stroke: #666;
-  }
-
-  .filter-select-wrapper :global(.dropdown-list) {
-    border-radius: 20px;
-    border: 1px solid #dcdcdc;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .filter-select-wrapper :global(.item-btn) {
-    padding: 12px 24px;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-    color: black;
-  }
-
-  .filter-select-wrapper :global(.item-btn.selected) {
-    background: #e3f2fd;
-    color: #438bff;
-    font-weight: 600;
-  }
-
-  .frame-2147227615 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 24px;
-    display: flex;
-  }
-
-  .frame-1410103894 {
-    align-self: stretch;
-    gap: 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-  }
-
-  .loading-message,
-  .error-message,
-  .empty-message {
-    grid-column: 1 / -1;
-    padding: 32px;
-    text-align: center;
-    color: #666;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 500;
-  }
-
-  .error-message {
-    color: #d32f2f;
-  }
-
-  .empty-message {
-    color: #999;
-  }
-
-  .frame-1410104154 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 24px;
-    display: flex;
-  }
-
-  .frame-1410104150 {
-    width: 100%;
-    height: 100%;
-    background: white;
-    border-radius: 8px;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 24px;
-    display: inline-flex;
-  }
 
   .fstorycreditsleft_span {
     color: #438bff;
@@ -3434,60 +2098,4 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     display: inline-flex;
   }
 
-  /* Add Children Button Styles */
-  .frame-1410104245-add-children {
-    width: 200px;
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    position: relative;
-    background: #438BFF;
-    overflow: hidden;
-    border-radius: 12px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    box-sizing: border-box;
-  }
-
-  .frame-1410104245-add-children:hover {
-    background: #3b7ce6;
-  }
-
-  .frame-1410103899-add-children {
-    flex-direction: row;
-    gap: 12px;
-    display: flex;
-  }
-
-  .usercircleplus-add-children {
-    width: 24px;
-    height: 24px;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .usercircleplus-icon {
-    width: 24px;
-    height: 24px;
-    filter: brightness(0) invert(1);
-  }
-
-  .ellipse-1415-add-children {
-    width: 248px;
-    height: 114px;
-    left: -38px;
-    top: 20px;
-    position: absolute;
-    background: radial-gradient(ellipse 42.11% 42.11% at 50.00% 52.94%, white 0%, rgba(255, 255, 255, 0) 100%);
-    border-radius: 9999px;
-    pointer-events: none;
-  }
 </style>

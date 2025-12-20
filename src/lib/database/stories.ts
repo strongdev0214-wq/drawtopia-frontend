@@ -175,81 +175,89 @@ export async function getStoriesForChild(childProfileId: string): Promise<Databa
  */
 export async function getAllStoriesForParent(parentId: string): Promise<DatabaseResult> {
   try {
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', parentId)
-      // .single();
+    // Determine backend URL
+    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    
+    // Call Python backend API
+    const endpoint = `${backendUrl}/api/books/?parent_id=${encodeURIComponent(parentId)}`;
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-    // if (userError) {
-    //   console.error('Error fetching user data:', userError);
-    //   return {
-    //     success: false,
-    //     error: userError.message
-    //   };
-    // }
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
 
-    // const userName = userData?.full_name || `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim();
-
-    // First, get all child profile IDs for this parent
-    const { data: childProfiles, error: childError } = await supabase
-      .from('child_profiles')
-      .select('*')
-      .eq('parent_id', parentId);
-
-    if (childError) {
-      console.error('Error fetching child profiles:', childError);
       return {
         success: false,
-        error: childError.message
+        error: errorMessage
       };
     }
 
-    if (!childProfiles || childProfiles.length === 0) {
-      return {
-        success: true,
-        data: []
-      };
-    }
-
-    // Extract child profile IDs
-    const childProfileIds = childProfiles.map(profile => profile.id);
-
-    // Now get all stories for these child profiles
-    const { data: stories, error: storiesError } = await supabase
-      .from('stories')
-      .select('*')
-      .in('child_profile_id', childProfileIds)
-      .order('created_at', { ascending: false });
-
-    if (storiesError) {
-      console.error('Error fetching stories for parent:', storiesError);
-      return {
-        success: false,
-        error: storiesError.message
-      };
-    }
-
-    // Merge child profile data with stories
-    const storiesWithChildData = stories?.map(story => {
-      const childProfile = childProfiles.find(cp => cp.id === story.child_profile_id);
-      return {
-        ...story,
-        user_name: userData ? `${userData[0].first_name} ${userData[0].last_name}` : 'Unknown',
-        child_profiles: childProfile
-      };
-    }) || [];
+    const data = await response.json();
 
     return {
       success: true,
-      data: storiesWithChildData
+      data: data || []
     };
 
   } catch (error) {
-    console.error('Unexpected error fetching stories for parent:', error);
     return {
       success: false,
-      error: 'An unexpected error occurred while fetching stories'
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching stories'
+    };
+  }
+}
+
+/**
+ * Get all characters from the backend API
+ * @returns Promise with character data
+ */
+export async function getAllCharacters(): Promise<DatabaseResult> {
+  try {
+    // Determine backend URL
+    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    
+    // Call Python backend API
+    const endpoint = `${backendUrl}/api/characters`;
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      } catch (parseError) {
+        const errorText = await response.text().catch(() => '');
+        errorMessage = errorText || errorMessage;
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      data: data || []
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching characters'
     };
   }
 }

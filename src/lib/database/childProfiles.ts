@@ -182,3 +182,47 @@ export async function deleteChildProfile(profileId: number, parentId: string): P
     };
   }
 }
+
+/**
+ * Get all children for a parent via backend API
+ * @param parentId - The parent's user ID
+ * @returns Promise with child profiles
+ */
+export async function getChildrenForParent(parentId: string): Promise<DatabaseResult> {
+  try {
+    // Determine backend URL
+    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    
+    // Call Python backend API
+    const endpoint = `${backendUrl}/api/users/children?parent_id=${encodeURIComponent(parentId)}`;
+    
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      data: data || []
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while fetching children'
+    };
+  }
+}
