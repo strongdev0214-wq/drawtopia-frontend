@@ -43,6 +43,7 @@
     let dedicationMessage = "";
     let selectedOccasion = "";
     let deliveryDate = "";
+    let deliveryTime = "";
 
     let characterCount = 0;
     const maxCharacters = 200;
@@ -110,6 +111,26 @@
             return;
         }
 
+        // Validate scheduled delivery date and time
+        if (scheduleDelivery) {
+            if (!deliveryDate) {
+                alert("Please select a delivery date");
+                return;
+            }
+            if (!deliveryTime) {
+                alert("Please select a delivery time");
+                return;
+            }
+            
+            // Validate that the scheduled date/time is in the future
+            const scheduledDateTime = new Date(`${deliveryDate}T${deliveryTime}`);
+            const now = new Date();
+            if (scheduledDateTime <= now) {
+                alert("Please select a future date and time for delivery");
+                return;
+            }
+        }
+
         // Save data to store
         giftCreation.setRecipientDetails({
             childName,
@@ -121,10 +142,17 @@
             occasion: selectedOccasion,
         });
 
+        // Combine date and time into ISO string for scheduled delivery
+        let deliveryDateTime = undefined;
+        if (scheduleDelivery && deliveryDate && deliveryTime) {
+            const dateTime = new Date(`${deliveryDate}T${deliveryTime}`);
+            deliveryDateTime = dateTime.toISOString();
+        }
+
         // Save delivery details including parent email as delivery email
         giftCreation.setDeliveryDetails({
             deliveryEmail: parentEmail,
-            deliveryTime: scheduleDelivery ? deliveryDate : undefined,
+            deliveryTime: deliveryDateTime,
             deliveryOption: scheduleDelivery ? 'scheduled' : 'surprise',
         });
 
@@ -258,17 +286,30 @@
                 {#if scheduleDelivery}
                     <div class="form-group">
                         <label class="form-label" for="delivery-date"
-                            >Date</label
+                            >Delivery Date & Time</label
                         >
-                        <div class="date-input-wrapper">
-                            <input
-                                id="delivery-date"
-                                type="date"
-                                class="form-input date-input"
-                                placeholder="MM/DD/YYYY"
-                                bind:value={deliveryDate}
-                            />
+                        <div class="datetime-input-container">
+                            <div class="date-input-wrapper">
+                                <input
+                                    id="delivery-date"
+                                    type="date"
+                                    class="form-input date-input"
+                                    placeholder="MM/DD/YYYY"
+                                    bind:value={deliveryDate}
+                                    min={new Date().toISOString().split('T')[0]}
+                                />
+                            </div>
+                            <div class="time-input-wrapper">
+                                <input
+                                    id="delivery-time"
+                                    type="time"
+                                    class="form-input time-input"
+                                    placeholder="HH:MM"
+                                    bind:value={deliveryTime}
+                                />
+                            </div>
                         </div>
+                        <p class="input-hint">Select when the gift link should be sent to the recipient</p>
                     </div>
                 {/if}
             </div>
@@ -539,13 +580,33 @@
         cursor: pointer;
     }
 
-    .date-input-wrapper {
-        position: relative;
+    .datetime-input-container {
+        display: flex;
+        gap: 12px;
+        width: 100%;
     }
 
-    .date-input {
-        padding-right: 40px;
+    .date-input-wrapper {
+        position: relative;
+        flex: 1;
+    }
+
+    .time-input-wrapper {
+        position: relative;
+        flex: 1;
+    }
+
+    .date-input,
+    .time-input {
         width: 100%;
+    }
+
+    .input-hint {
+        font-family: Nunito;
+        font-size: 14px;
+        color: #666d80;
+        margin-top: 8px;
+        margin-bottom: 0;
     }
 
     .actions {
@@ -615,6 +676,11 @@
 
         .form-title {
             font-size: 20px;
+        }
+
+        .datetime-input-container {
+            flex-direction: column;
+            gap: 12px;
         }
 
         .actions {

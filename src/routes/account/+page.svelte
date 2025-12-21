@@ -16,6 +16,7 @@
     import { user, auth } from "../../lib/stores/auth";
     import { getUserProfile } from "../../lib/auth";
     import AccountDropdown from "../../components/AccountDropdown.svelte";
+    import PushNotificationSettings from "../../components/PushNotificationSettings.svelte";
 
     let isEditing = false;
     let showEditProfileModal = false;
@@ -273,6 +274,14 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Push Notifications Section -->
+        <div class="frame-1410103889">
+            <div class="frame-1410103917_01">
+                <PushNotificationSettings />
+            </div>
+        </div>
+        
         {#if isEditing}
         <div class="action-buttons">
             <button class="save-button" on:click={handleSave}>

@@ -3,6 +3,8 @@
   import { browser } from '$app/environment';
   import { getGiftsReceivedByUser, markGiftAsChecked, type Gift } from '../lib/database/gifts';
   import { user } from '../lib/stores/auth';
+  import { setGiftNotifications, removeGiftNotification, unreadCount } from '../lib/stores/giftNotifications';
+  import { initializePushNotifications, updateBadgeCount } from '../lib/pushNotifications';
   import giftIcon from '../assets/Gift.svg';
 
   let notifications: Gift[] = [];
@@ -10,6 +12,7 @@
   let error = '';
   let showDropdown = false;
   let notificationElement: HTMLElement;
+  let pollingInterval: number;
 
   // Fetch notifications (gifts received by user) from Supabase
   const fetchNotifications = async () => {
@@ -21,14 +24,18 @@
       
       if (result.success && result.data) {
         notifications = result.data as Gift[];
+        // Update the store
+        setGiftNotifications(notifications);
       } else {
         error = result.error || 'Failed to fetch notifications';
         notifications = [];
+        setGiftNotifications([]);
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
       error = 'An unexpected error occurred while fetching notifications';
       notifications = [];
+      setGiftNotifications([]);
     } finally {
       loading = false;
     }
@@ -99,10 +106,13 @@
         console.log('Successfully marked gift as checked');
         // Remove from local list immediately for better UX
         notifications = notifications.filter(n => n.id !== notification.id);
+        // Update store
+        removeGiftNotification(notification.id);
       } else {
         console.error('Failed to mark gift as checked:', result.error);
         // Still remove from list even if update fails
         notifications = notifications.filter(n => n.id !== notification.id);
+        removeGiftNotification(notification.id);
       }
       
       // Close dropdown
@@ -117,6 +127,7 @@
       console.error('Error handling notification click:', err);
       // Remove from list even if there's an error
       notifications = notifications.filter(n => n.id !== notification.id);
+      removeGiftNotification(notification.id);
       showDropdown = false;
       
       // Still open in new tab even if marking as checked fails
@@ -128,18 +139,47 @@
   };
 
   onMount(() => {
+    // Initialize push notifications
+    if (browser) {
+      initializePushNotifications().catch(err => {
+        console.error('Failed to initialize push notifications:', err);
+      });
+    }
+
     // Fetch notifications when component mounts
     if ($user?.id) {
       fetchNotifications();
+      
+      // Poll for new notifications every 30 seconds
+      pollingInterval = window.setInterval(() => {
+        if ($user?.id) {
+          fetchNotifications();
+        }
+      }, 30000);
     }
 
     // Listen for user changes
     const unsubscribe = user.subscribe(($user) => {
       if ($user?.id) {
         fetchNotifications();
+        
+        // Set up polling if not already set
+        if (!pollingInterval) {
+          pollingInterval = window.setInterval(() => {
+            if ($user?.id) {
+              fetchNotifications();
+            }
+          }, 30000);
+        }
       } else {
         notifications = [];
+        setGiftNotifications([]);
         loading = false;
+        
+        // Clear polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+        }
       }
     });
 
@@ -153,6 +193,9 @@
       if (browser) {
         document.removeEventListener('click', handleClickOutside);
       }
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
     };
   });
 
@@ -160,13 +203,16 @@
     if (browser) {
       document.removeEventListener('click', handleClickOutside);
     }
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
   });
 
-  // Count unread notifications (all gifts for now)
-  $: unreadCount = notifications.length;
+  // Use unreadCount from store
+  $: currentUnreadCount = $unreadCount;
 
   // Get notification badge count display
-  $: badgeCount = unreadCount > 99 ? '99+' : unreadCount.toString();
+  $: badgeCount = currentUnreadCount > 99 ? '99+' : currentUnreadCount.toString();
 </script>
 
 <div class="notification-container" bind:this={notificationElement}>
@@ -200,7 +246,7 @@
         stroke-linejoin="round"
       />
     </svg>
-    {#if unreadCount > 0}
+    {#if currentUnreadCount > 0}
       <span class="notification-badge">{badgeCount}</span>
     {/if}
   </button>

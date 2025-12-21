@@ -13,7 +13,12 @@
   // Helper functions to safely get gift data with fallbacks
   $: sendTo = gift?.sendTo || gift?.delivery_email || "Unknown";
   $: sentDate = gift?.sentDate || (gift?.created_at ? new Date(gift.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown");
-  $: deliveryDate = gift?.deliveryDate || (gift?.delivery_time ? new Date(gift.delivery_time).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown");
+  $: deliveryDate = gift?.deliveryDate || (gift?.delivery_time ? (() => {
+    const date = new Date(gift.delivery_time);
+    const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    return `${dateStr} at ${timeStr}`;
+  })() : "Unknown");
   $: age = gift?.age || (gift?.ageGroup ? (() => {
     const match = gift.ageGroup.match(/(\d+)-(\d+)/);
     if (match) {

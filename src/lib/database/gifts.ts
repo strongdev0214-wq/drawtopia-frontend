@@ -21,6 +21,9 @@ export interface Gift {
   from_user_id?: string; // User ID of the sender
   to_user_id?: string; // User ID of the recipient (if they exist in system)
   checked?: boolean; // Whether the notification has been checked/viewed
+  notification_sent?: boolean; // Whether push notification has been sent
+  notification_sent_at?: string; // Timestamp when notification was sent
+  notification_scheduled?: boolean; // Whether notification has been scheduled
 }
 
 export interface DatabaseResult {

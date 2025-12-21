@@ -13,7 +13,8 @@
   let specialMessage = "This is Present Give to you, i hope you like it, thank you emma.\nLove, Grandma!";
   let deliveryEmail = "drawtopia@example.com";
   let deliveryOption = "scheduled"; // "surprise" or "scheduled"
-  let deliveryDate = "12/12/2025";
+  let deliveryDate = "";
+  let deliveryTime = "";
 
   // Reactive statements for auth state
   $: currentUser = $user;
@@ -58,11 +59,6 @@
     deliveryOption = option;
   };
 
-  const handleDeliveryDateChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    deliveryDate = target.value;
-  };
-
   const handleContinue = () => {
     // Validate required fields
     if (!deliveryEmail.trim()) {
@@ -70,12 +66,39 @@
       return;
     }
 
+    // Validate scheduled delivery date and time
+    if (deliveryOption === 'scheduled') {
+      if (!deliveryDate) {
+        alert("Please select a delivery date");
+        return;
+      }
+      if (!deliveryTime) {
+        alert("Please select a delivery time");
+        return;
+      }
+      
+      // Validate that the scheduled date/time is in the future
+      const scheduledDateTime = new Date(`${deliveryDate}T${deliveryTime}`);
+      const now = new Date();
+      if (scheduledDateTime <= now) {
+        alert("Please select a future date and time for delivery");
+        return;
+      }
+    }
+
+    // Combine date and time into ISO string for scheduled delivery
+    let deliveryDateTime = undefined;
+    if (deliveryOption === 'scheduled' && deliveryDate && deliveryTime) {
+      const dateTime = new Date(`${deliveryDate}T${deliveryTime}`);
+      deliveryDateTime = dateTime.toISOString();
+    }
+
     // Save delivery details to gift store
     giftCreation.setDeliveryDetails({
       specialMsg: specialMessage,
       deliveryEmail: deliveryEmail.trim(),
       deliveryOption: deliveryOption as 'surprise' | 'scheduled',
-      deliveryTime: deliveryOption === 'scheduled' ? deliveryDate : 'immediate'
+      deliveryTime: deliveryDateTime
     });
 
     // Navigate to review page
@@ -325,12 +348,21 @@
           </div>
           {#if deliveryOption === 'scheduled'}
             <div class="input-placeholder_07">
-              <input
-                type="date"
-                bind:value={deliveryDate}
-                on:input={handleDeliveryDateChange}
-                class="date-input"
-              />
+              <div class="datetime-inputs">
+                <input
+                  type="date"
+                  bind:value={deliveryDate}
+                  class="date-input"
+                  min={new Date().toISOString().split('T')[0]}
+                  placeholder="Select Date"
+                />
+                <input
+                  type="time"
+                  bind:value={deliveryTime}
+                  class="time-input"
+                  placeholder="Select Time"
+                />
+              </div>
             </div>
           {/if}
         </div>
@@ -1141,7 +1173,8 @@
 
   .input-placeholder_07 {
     align-self: stretch;
-    height: 50px;
+    min-height: 50px;
+    height: auto;
     padding-left: 10px;
     padding-right: 10px;
     padding-top: 4px;
@@ -1379,7 +1412,14 @@
     color: #141414;
   }
 
-  .email-input, .date-input {
+  .datetime-inputs {
+    width: 100%;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .email-input, .date-input, .time-input {
     width: 100%;
     border: none;
     outline: none;
@@ -1595,6 +1635,11 @@
     .input-placeholder_07:focus-within {
       transform: translateY(-2px);
       box-shadow: 0 0 0 2px rgba(67, 139, 255, 0.15);
+    }
+
+    .datetime-inputs {
+      flex-direction: column;
+      gap: 8px;
     }
 
     /* Example messages mobile layout */
