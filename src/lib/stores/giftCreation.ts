@@ -168,11 +168,8 @@ const createGiftCreationStore = () => {
       // Determine delivery time based on option
       let deliveryTime = state.deliveryTime || '';
       if (state.deliveryOption === 'surprise') {
-        deliveryTime = new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
+        // For surprise/immediate delivery, use current time in ISO format
+        deliveryTime = new Date().toISOString();
       }
       
       return {

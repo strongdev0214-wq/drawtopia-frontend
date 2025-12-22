@@ -87,22 +87,25 @@ self.addEventListener('push', (event) => {
     }
   }
   
-  // Show notification
+  // Show notification and notify clients
   event.waitUntil(
-    self.registration.showNotification(notificationData.title, {
-      body: notificationData.body,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      tag: notificationData.tag,
-      requireInteraction: notificationData.requireInteraction,
-      data: notificationData.data,
-      actions: notificationData.actions,
-      vibrate: [200, 100, 200],
-    })
+    Promise.all([
+      self.registration.showNotification(notificationData.title, {
+        body: notificationData.body,
+        icon: notificationData.icon,
+        badge: notificationData.badge,
+        tag: notificationData.tag,
+        requireInteraction: notificationData.requireInteraction,
+        data: notificationData.data,
+        actions: notificationData.actions,
+        vibrate: [200, 100, 200],
+      }),
+      // Notify all clients that a new notification was received
+      notifyClients({ type: 'NOTIFICATION_RECEIVED', data: notificationData.data }),
+      // Update badge count
+      updateBadgeCount(),
+    ])
   );
-  
-  // Update badge count
-  updateBadgeCount();
 });
 
 // Notification click event - handle user interaction
@@ -290,6 +293,18 @@ async function syncNotifications() {
     }
   } catch (error) {
     console.error('Error syncing notifications:', error);
+  }
+}
+
+// Helper: Notify all clients of an event
+async function notifyClients(message) {
+  try {
+    const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+    for (const client of clients) {
+      client.postMessage(message);
+    }
+  } catch (error) {
+    console.error('Error notifying clients:', error);
   }
 }
 

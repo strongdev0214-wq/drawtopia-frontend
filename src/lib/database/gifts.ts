@@ -185,7 +185,7 @@ export async function getGiftsForUser(): Promise<DatabaseResult> {
 
 /**
  * Get gifts received by current user (gifts where user is the recipient)
- * Only returns unchecked gifts (checked = false or null)
+ * Only returns unchecked gifts (checked = false or null) where delivery_time has passed
  * @returns Promise with gifts data
  */
 export async function getGiftsReceivedByUser(): Promise<DatabaseResult> {
@@ -209,13 +209,7 @@ export async function getGiftsReceivedByUser(): Promise<DatabaseResult> {
       .or(`to_user_id.eq.${user.id},delivery_email.eq.${userEmail}`)
       .order('created_at', { ascending: false });
     
-    // Filter to only unchecked gifts (checked is null or false)
     const { data, error } = await query;
-    
-    // Filter in JavaScript to ensure we only get unchecked gifts
-    const uncheckedGifts = (data || []).filter((gift: Gift) => 
-      gift.checked === false || gift.checked === null || gift.checked === undefined
-    );
 
     if (error) {
       console.error('Error fetching received gifts:', error);
@@ -224,6 +218,25 @@ export async function getGiftsReceivedByUser(): Promise<DatabaseResult> {
         error: error.message
       };
     }
+    
+    // Get current time
+    const now = new Date();
+    
+    // Filter to only unchecked gifts where delivery_time has passed
+    const uncheckedGifts = (data || []).filter((gift: Gift) => {
+      const isUnchecked = gift.checked === false || gift.checked === null || gift.checked === undefined;
+      
+      // Only show gifts where delivery_time exists AND has passed
+      // If delivery_time is missing/null/empty, don't show the gift
+      if (!gift.delivery_time) {
+        return false; // Skip gifts without delivery_time
+      }
+      
+      const deliveryDate = new Date(gift.delivery_time);
+      const isDelivered = deliveryDate <= now;
+      
+      return isUnchecked && isDelivered;
+    });
 
     return {
       success: true,

@@ -12,7 +12,6 @@
   let error = '';
   let showDropdown = false;
   let notificationElement: HTMLElement;
-  let pollingInterval: number;
 
   // Fetch notifications (gifts received by user) from Supabase
   const fetchNotifications = async () => {
@@ -144,42 +143,31 @@
       initializePushNotifications().catch(err => {
         console.error('Failed to initialize push notifications:', err);
       });
+
+      // Set up service worker message listener for push notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'NOTIFICATION_RECEIVED') {
+            console.log('Received push notification, refreshing notifications...');
+            fetchNotifications();
+          }
+        });
+      }
     }
 
     // Fetch notifications when component mounts
     if ($user?.id) {
       fetchNotifications();
-      
-      // Poll for new notifications every 30 seconds
-      pollingInterval = window.setInterval(() => {
-        if ($user?.id) {
-          fetchNotifications();
-        }
-      }, 30000);
     }
 
     // Listen for user changes
     const unsubscribe = user.subscribe(($user) => {
       if ($user?.id) {
         fetchNotifications();
-        
-        // Set up polling if not already set
-        if (!pollingInterval) {
-          pollingInterval = window.setInterval(() => {
-            if ($user?.id) {
-              fetchNotifications();
-            }
-          }, 30000);
-        }
       } else {
         notifications = [];
         setGiftNotifications([]);
         loading = false;
-        
-        // Clear polling
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-        }
       }
     });
 
@@ -193,18 +181,12 @@
       if (browser) {
         document.removeEventListener('click', handleClickOutside);
       }
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
     };
   });
 
   onDestroy(() => {
     if (browser) {
       document.removeEventListener('click', handleClickOutside);
-    }
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
     }
   });
 
