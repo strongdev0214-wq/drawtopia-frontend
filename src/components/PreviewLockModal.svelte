@@ -3,11 +3,12 @@
   import LockKeyRed from "../assets/LockKey-red.svg";
 
   export let characterName = "Emma"; // Default character name
+  export let storyId: string | null = null; // Story ID to pass for purchase
 
   const dispatch = createEventDispatcher();
 
   function handleUnlock() {
-    dispatch("unlock");
+    dispatch("unlock", { storyId });
   }
 
   function handleClose() {

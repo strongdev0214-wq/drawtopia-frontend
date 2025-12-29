@@ -38,6 +38,8 @@
   let readingTime = "0:00";
   let audioListened = "0 min";
   let isFreePlan = true; // Default to free plan for safety
+  let isPurchased = false; // Whether the current story has been purchased
+  let currentStoryId: string | null = null; // Current story ID
   let isLoading = true;
   let loadError = "";
 
@@ -99,6 +101,9 @@
       }
       
       try {
+        // Store current story ID
+        currentStoryId = storyId;
+        
         // Fetch story from database
         const result = await getStoryById(storyId);
         
@@ -114,6 +119,14 @@
         
         // Set story title
         storyTitle = story.story_title || story.character_name || "Untitled Story";
+        
+        // Check if story has been purchased
+        // Ensure we properly check the purchased field from the database
+        const storyData = Array.isArray(story) ? story[0] : story;
+        isPurchased = storyData?.purchased === true;
+        console.log("[preview] Story purchased status:", isPurchased);
+        console.log("[preview] Story ID:", currentStoryId);
+        console.log("[preview] Story data purchased field:", storyData?.purchased);
         
         // Build storyScenes array: [cover, scene1, scene2, ...]
         const loadedScenes: string[] = [];
@@ -206,11 +219,14 @@
   function nextScene() {
     // Check if trying to go beyond page 2 (index 1)
     // If on page 2 (index 1) and trying to go to page 3 (index 2), show lock modal
-    // But only if user is on free plan
-    if (currentSceneIndex >= 1 && isFreePlan) {
-      // Show the preview lock modal for free plan users
+    // But only if user is on free plan AND story is not purchased
+    if (currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
+      // Show the preview lock modal for free plan users who haven't purchased
+      console.log("[preview] Showing lock modal - currentSceneIndex:", currentSceneIndex, "isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
       showPreviewLockModal = true;
       return;
+    } else if (currentSceneIndex >= 1) {
+      console.log("[preview] Not showing lock modal - isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
     }
     
     // Allow navigation from page 1 (index 0) to page 2 (index 1)
@@ -242,8 +258,9 @@
   }
 
   function goToScene(index: number) {
-    // Prevent navigation to pages beyond page 2 (index 1) for free plan users
-    if (index > 1 && isFreePlan) {
+    // Prevent navigation to pages beyond page 2 (index 1) for free plan users who haven't purchased
+    if (index > 1 && isFreePlan && !isPurchased) {
+      console.log("[preview] Showing lock modal via goToScene - index:", index, "isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
       showPreviewLockModal = true;
       return;
     }
@@ -258,10 +275,17 @@
     showPreviewLockModal = false;
   }
   
-  function handleUnlockPreview() {
-    // Navigate to pricing page when unlock button is clicked
+  function handleUnlockPreview(event: CustomEvent) {
+    // Navigate to pricing page with story ID when unlock button is clicked
     showPreviewLockModal = false;
-    goto('/pricing');
+    const storyId = event.detail?.storyId || currentStoryId;
+    
+    // Pass story ID as URL parameter to pricing page
+    if (storyId) {
+      goto(`/pricing?storyId=${storyId}`);
+    } else {
+      goto('/pricing');
+    }
   }
 
   // Update page counter text
@@ -646,6 +670,7 @@
   {#if showPreviewLockModal}
     <PreviewLockModal
       characterName={storyTitle.split("'")[0] || "Emma"}
+      storyId={currentStoryId}
       on:close={handleClosePreviewLockModal}
       on:unlock={handleUnlockPreview}
     />

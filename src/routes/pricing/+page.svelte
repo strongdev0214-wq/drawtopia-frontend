@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import { browser } from "$app/environment";
+    import { page } from "$app/stores";
     import drawtopia from "../../assets/logo.png";
     import xicon from "../../assets/X.svg";
     import checkicon from "../../assets/GrayCheck.svg";
@@ -15,16 +16,91 @@
     const API_BASE_URL = "https://drawtopia-backend.vercel.app";
 
     let isLoadingSubscription = false;
+    let isLoadingSingleStory = false;
+    let isLoadingStoryBundle = false;
     let subscriptionError = "";
-
-    function handlePurchase() {
-        goto("/purchase");
+    let purchaseError = "";
+    
+    // Get story ID from URL query parameters
+    $: purchaseStoryId = $page.url.searchParams.get('storyId');
+    
+    // Log when story ID is present
+    $: if (purchaseStoryId) {
+        console.log('[pricing] Found story ID for purchase:', purchaseStoryId);
     }
 
-    function handleKeyDown(event: KeyboardEvent) {
+    async function handlePurchase(purchaseType: 'single_story' | 'story_bundle') {
+        if (isLoadingSingleStory || isLoadingStoryBundle) return;
+        
+        // Set loading state based on purchase type
+        if (purchaseType === 'single_story') {
+            isLoadingSingleStory = true;
+        } else {
+            isLoadingStoryBundle = true;
+        }
+        
+        purchaseError = "";
+        
+        try {
+            // Get current user info from auth store
+            let userEmail = null;
+            let userId = null;
+            
+            if ($user) {
+                userEmail = $user.email;
+                userId = $user.id;
+            }
+            console.log('[handlePurchase] userEmail:', userEmail);
+            console.log('[handlePurchase] userId:', userId);
+            console.log('[handlePurchase] purchaseType:', purchaseType);
+
+            // Call the backend to create a Stripe checkout session
+            const response = await fetch(`${API_BASE_URL}/api/stripe/create-onetime-checkout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    purchase_type: purchaseType,
+                    story_id: purchaseStoryId, // Include story ID if available
+                    user_email: userEmail,
+                    user_id: userId,
+                    success_url: `${window.location.origin}/purchase/success?session_id={CHECKOUT_SESSION_ID}`,
+                    cancel_url: `${window.location.origin}/pricing`
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create checkout session');
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.checkout_url) {
+                // Redirect to Stripe Checkout
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error(data.message || 'Failed to get checkout URL');
+            }
+        } catch (error) {
+            console.error('Purchase error:', error);
+            purchaseError = error instanceof Error ? error.message : 'An error occurred';
+            // Show error to user
+            alert(`Failed to start purchase: ${purchaseError}`);
+        } finally {
+            if (purchaseType === 'single_story') {
+                isLoadingSingleStory = false;
+            } else {
+                isLoadingStoryBundle = false;
+            }
+        }
+    }
+
+    function handleKeyDown(event: KeyboardEvent, purchaseType: 'single_story' | 'story_bundle') {
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            handlePurchase();
+            handlePurchase(purchaseType);
         }
     }
 
@@ -143,14 +219,18 @@
                                 class="f99story_span_02">/story</span
                             >
                         </div>
+                </div>
+                <div class="button" on:click={() => handlePurchase('single_story')} on:keydown={(e) => handleKeyDown(e, 'single_story')} role="button" tabindex="0" class:loading={isLoadingSingleStory}>
+                    <div class="start-creating-free">
+                        <span class="startcreatingfree_span">
+                            {#if isLoadingSingleStory}
+                                Loading...
+                            {:else}
+                                Start Creating Free
+                            {/if}
+                        </span>
                     </div>
-                    <div class="button" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
-                        <div class="start-creating-free">
-                            <span class="startcreatingfree_span"
-                                >Start Creating Free</span
-                            >
-                        </div>
-                    </div>
+                </div>
                 </div>
                 <div class="checklist-container">
                     <div class="checklist">
@@ -227,11 +307,15 @@
                             >
                         </div>
                     </div>
-                    <div class="button_01" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
+                    <div class="button_01" on:click={() => handlePurchase('story_bundle')} on:keydown={(e) => handleKeyDown(e, 'story_bundle')} role="button" tabindex="0" class:loading={isLoadingStoryBundle}>
                         <div class="get-story-bundle">
-                            <span class="getstorybundle_span"
-                                >Get Story Bundle</span
-                            >
+                            <span class="getstorybundle_span">
+                                {#if isLoadingStoryBundle}
+                                    Loading...
+                                {:else}
+                                    Get Story Bundle
+                                {/if}
+                            </span>
                         </div>
                         <div class="ellipse-1415"></div>
                     </div>
@@ -430,11 +514,15 @@
                     </div>
                 </div>
                 <div class="ellipse-1426_02"></div>
-                <div class="button_03" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
+                <div class="button_03" on:click={() => handlePurchase('single_story')} on:keydown={(e) => handleKeyDown(e, 'single_story')} role="button" tabindex="0" class:loading={isLoadingSingleStory}>
                     <div class="start-creating-free_01">
-                        <span class="startcreatingfree_01_span"
-                            >Start Creating Free</span
-                        >
+                        <span class="startcreatingfree_01_span">
+                            {#if isLoadingSingleStory}
+                                Loading...
+                            {:else}
+                                Start Creating Free
+                            {/if}
+                        </span>
                     </div>
                 </div>
                 <img src={lightgroup} alt="lightgroup" class="lightgroup" />
@@ -518,11 +606,15 @@
                         </div>
                     </div>
                 </div>
-                <div class="button_04" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
+                <div class="button_04" on:click={() => handlePurchase('single_story')} on:keydown={(e) => handleKeyDown(e, 'single_story')} role="button" tabindex="0" class:loading={isLoadingSingleStory}>
                     <div class="start-creating-free_02">
-                        <span class="startcreatingfree_02_span"
-                            >Start Creating Free</span
-                        >
+                        <span class="startcreatingfree_02_span">
+                            {#if isLoadingSingleStory}
+                                Loading...
+                            {:else}
+                                Start Creating Free
+                            {/if}
+                        </span>
                     </div>
                 </div>
                 <img src={heavygroup} alt="heavygroup" class="heavygroup" />
@@ -1472,6 +1564,12 @@
         box-shadow: 0px 0px 0px 2px #f0f0f0;
     }
 
+    .button.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
+    }
+
     .heading_02 {
         align-self: stretch;
         flex-direction: column;
@@ -1578,6 +1676,12 @@
         box-shadow: 0px 0px 0px 2px #f0f0f0;
     }
 
+    .button_03.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
+    }
+
     .button_04 {
         padding-top: 16px;
         padding-bottom: 16px;
@@ -1609,6 +1713,12 @@
         background: #e8e8e8;
         transform: translate(-24px, -24px) scale(0.98);
         box-shadow: 0px 0px 0px 2px white;
+    }
+
+    .button_04.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
     }
 
     .logo-text-full {
@@ -1698,6 +1808,12 @@
         background: #2d6bd1;
         transform: scale(0.98);
         box-shadow: 0px 0px 0px 2px #f0f0f0;
+    }
+
+    .button_01.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
     }
 
     .check_09 {
