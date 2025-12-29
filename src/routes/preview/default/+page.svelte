@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
   import share from "../../../assets/Share.svg";
   import DotsThreeOutline from "../../../assets/DotsThreeOutline.svg";
@@ -42,6 +42,16 @@
   let currentStoryId: string | null = null; // Current story ID
   let isLoading = true;
   let loadError = "";
+
+  // Audio playback state
+  let audioUrls: string[] = []; // Array of audio URLs from database
+  let currentAudio: HTMLAudioElement | null = null;
+  let isPlaying = false;
+  let audioProgress = 0; // 0-100 percentage
+  let currentTime = 0; // Current time in seconds
+  let duration = 0; // Total duration in seconds
+  let audioSpeed = 1; // Playback speed
+  let isAudioAvailable = false; // Whether audio exists for current page
 
   // Reactive statement to check subscription status when user changes
   $: if (browser && $user) {
@@ -127,6 +137,20 @@
         console.log("[preview] Story purchased status:", isPurchased);
         console.log("[preview] Story ID:", currentStoryId);
         console.log("[preview] Story data purchased field:", storyData?.purchased);
+        
+        // Load audio URLs from database (audio_url field)
+        if (storyData?.audio_url) {
+          if (Array.isArray(storyData.audio_url)) {
+            audioUrls = storyData.audio_url;
+          } else if (typeof storyData.audio_url === 'string') {
+            try {
+              audioUrls = JSON.parse(storyData.audio_url);
+            } catch {
+              audioUrls = [];
+            }
+          }
+          console.log("[preview] Loaded audio URLs:", audioUrls.length);
+        }
         
         // Build storyScenes array: [cover, scene1, scene2, ...]
         const loadedScenes: string[] = [];
@@ -287,6 +311,175 @@
       goto('/pricing');
     }
   }
+
+  // ==================== AUDIO PLAYBACK FUNCTIONS ====================
+  
+  function loadAudio(sceneIndex: number) {
+    // Clean up previous audio
+    cleanupAudio();
+    
+    // Reset audio state
+    isPlaying = false;
+    audioProgress = 0;
+    currentTime = 0;
+    duration = 0;
+    isAudioAvailable = false;
+    
+    // Cover page (index 0) and dedication pages don't have audio
+    if (sceneIndex === 0) {
+      console.log("[audio] Cover page - no audio");
+      return;
+    }
+    
+    // Calculate audio index: scene index 1 = audio[0], scene index 2 = audio[1], etc.
+    const audioIndex = sceneIndex - 1;
+    
+    // Check if audio exists for this scene
+    if (audioIndex < 0 || audioIndex >= audioUrls.length || !audioUrls[audioIndex]) {
+      console.log("[audio] No audio available for scene index:", sceneIndex);
+      return;
+    }
+    
+    const audioUrl = audioUrls[audioIndex];
+    console.log("[audio] Loading audio for scene", sceneIndex, ":", audioUrl);
+    
+    // Create new audio element
+    currentAudio = new Audio(audioUrl);
+    currentAudio.playbackRate = audioSpeed;
+    
+    // Add event listeners
+    currentAudio.addEventListener('timeupdate', handleTimeUpdate);
+    currentAudio.addEventListener('ended', handleAudioEnded);
+    currentAudio.addEventListener('error', handleAudioError);
+    currentAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    
+    isAudioAvailable = true;
+    
+    // Load the audio
+    currentAudio.load();
+  }
+  
+  function handleTimeUpdate() {
+    if (currentAudio) {
+      currentTime = currentAudio.currentTime;
+      duration = currentAudio.duration || 0;
+      audioProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
+    }
+  }
+  
+  function handleLoadedMetadata() {
+    if (currentAudio) {
+      duration = currentAudio.duration;
+      console.log("[audio] Audio loaded, duration:", formatTime(duration));
+    }
+  }
+  
+  function handleAudioEnded() {
+    isPlaying = false;
+    audioProgress = 100;
+    console.log("[audio] Audio playback ended");
+  }
+  
+  function handleAudioError(event: Event) {
+    console.error("[audio] Audio load error:", event);
+    isPlaying = false;
+    isAudioAvailable = false;
+  }
+  
+  function togglePlayPause() {
+    if (!isAudioAvailable || !currentAudio) {
+      console.log("[audio] No audio available");
+      return;
+    }
+    
+    if (isPlaying) {
+      pauseAudio();
+    } else {
+      playAudio();
+    }
+  }
+  
+  function playAudio() {
+    if (currentAudio && isAudioAvailable) {
+      const playPromise = currentAudio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            isPlaying = true;
+            console.log("[audio] Playing audio");
+          })
+          .catch((error) => {
+            console.error("[audio] Play error:", error);
+            isPlaying = false;
+          });
+      }
+    }
+  }
+  
+  function pauseAudio() {
+    if (currentAudio) {
+      currentAudio.pause();
+      isPlaying = false;
+      console.log("[audio] Audio paused");
+    }
+  }
+  
+  function seekAudio(event: MouseEvent) {
+    if (!currentAudio || !isAudioAvailable || duration <= 0) return;
+    
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const percentage = ((event.clientX - rect.left) / rect.width) * 100;
+    const newTime = (percentage / 100) * duration;
+    
+    currentAudio.currentTime = newTime;
+    audioProgress = percentage;
+  }
+  
+  function changePlaybackSpeed(speed: number) {
+    audioSpeed = speed;
+    if (currentAudio) {
+      currentAudio.playbackRate = speed;
+      console.log("[audio] Speed changed to:", speed + "x");
+    }
+  }
+  
+  function cyclePlaybackSpeed() {
+    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    const currentIndex = speeds.indexOf(audioSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+    changePlaybackSpeed(nextSpeed);
+  }
+  
+  function formatTime(seconds: number): string {
+    if (!seconds || isNaN(seconds) || !isFinite(seconds)) return "0:00";
+    
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+  
+  function cleanupAudio() {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.removeEventListener('timeupdate', handleTimeUpdate);
+      currentAudio.removeEventListener('ended', handleAudioEnded);
+      currentAudio.removeEventListener('error', handleAudioError);
+      currentAudio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      currentAudio = null;
+    }
+  }
+  
+  // Load audio when scene changes
+  $: if (browser && currentSceneIndex !== undefined) {
+    loadAudio(currentSceneIndex);
+  }
+  
+  // Cleanup on component destroy
+  onDestroy(() => {
+    cleanupAudio();
+  });
 
   // Update page counter text
   $: pageCounterText = storyScenes.length > 0
@@ -490,26 +683,77 @@
             <div class="frame-1410104061">
               <div class="frame-1410104060">
                 <div>
-                  <span class="audionaration_span">Audio Naration</span>
+                  <span class="audionaration_span">Audio Narration</span>
                 </div>
-                <div><span class="pages1-2_span">Pages 1 -2</span></div>
+                <div>
+                  <span class="pages1-2_span">
+                    {#if !isAudioAvailable}
+                      {currentSceneIndex === 0 ? 'Cover - No Audio' : 'No Audio'}
+                    {:else if duration > 0}
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    {:else}
+                      Page {currentSceneIndex}
+                    {/if}
+                  </span>
+                </div>
               </div>
               <div class="frame-1410104059">
-                <div class="frame-1410104056">
-                  <img src={Play} alt="play" />
+                <!-- Play/Pause Button -->
+                <div 
+                  class="frame-1410104056 audio-btn"
+                  class:disabled={!isAudioAvailable}
+                  role="button"
+                  tabindex={isAudioAvailable ? 0 : -1}
+                  on:click={togglePlayPause}
+                  on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && togglePlayPause()}
+                  title={!isAudioAvailable ? "No audio available" : (isPlaying ? "Pause" : "Play")}
+                >
+                  {#if isPlaying}
+                    <!-- Pause Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                      <rect x="7" y="5" width="3" height="14" rx="1"/>
+                      <rect x="14" y="5" width="3" height="14" rx="1"/>
+                    </svg>
+                  {:else}
+                    <img src={Play} alt="play" />
+                  {/if}
                 </div>
+                
+                <!-- Audio Progress Bar -->
                 <div class="audio">
                   <img src={SpeakerSimpleHigh} alt="speaker" />
 
                   <div class="frame-1410104058">
-                    <div class="rectangle-36"></div>
+                    <div 
+                      class="rectangle-36-bg"
+                      class:clickable={isAudioAvailable && duration > 0}
+                      role="progressbar"
+                      aria-valuenow={audioProgress}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      on:click={seekAudio}
+                    >
+                      <div class="rectangle-36" style="width: {audioProgress}%"></div>
+                    </div>
                   </div>
                 </div>
+                
+                <!-- Speed Control -->
                 <div class="frame-1410104063">
                   <div><span class="speed_span">Speed</span></div>
-                  <div class="frame-1410104062">
-                    <div><span class="fx_span">1x</span></div>
-                    <img src={CaretDown} alt="caret" />
+                  <div 
+                    class="frame-1410104062 speed-btn"
+                    class:disabled={!isAudioAvailable}
+                    role="button"
+                    tabindex={isAudioAvailable ? 0 : -1}
+                    on:click={cyclePlaybackSpeed}
+                    on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && cyclePlaybackSpeed()}
+                    title="Change playback speed"
+                  >
+                    <div><span class="fx_span">{audioSpeed}x</span></div>
+                    <div class="caretdown">
+                      <img src={CaretDown} alt="caret" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1324,13 +1568,29 @@
     word-wrap: break-word;
   }
 
+  .rectangle-36-bg {
+    width: 100%;
+    height: 6px;
+    position: relative;
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .rectangle-36-bg.clickable {
+    cursor: pointer;
+  }
+  
+  .rectangle-36-bg.clickable:hover {
+    background: #d0d0d0;
+  }
+  
   .rectangle-36 {
-    width: 73px;
-    height: 3px;
-    left: 0px;
-    top: -0.5px;
-    position: absolute;
+    height: 100%;
     background: #438bff;
+    transition: width 0.1s linear;
+    border-radius: 3px;
+    pointer-events: none;
   }
 
   .speed_span {
@@ -1479,13 +1739,43 @@
   }
 
   .frame-1410104056 {
+    width: 48px;
+    height: 48px;
     padding: 12px;
     background: #438bff;
     border-radius: 9999px;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: center;
     gap: 10px;
     display: flex;
+    min-width: 48px;
+    min-height: 48px;
+  }
+  
+  .frame-1410104056.audio-btn {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .frame-1410104056.audio-btn:hover:not(.disabled) {
+    background: #3578e5;
+    transform: scale(1.05);
+  }
+  
+  .frame-1410104056.audio-btn:active:not(.disabled) {
+    transform: scale(0.95);
+  }
+  
+  .frame-1410104056.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #9ca3af;
+  }
+  
+  .frame-1410104056 svg,
+  .frame-1410104056 img {
+    width: 24px;
+    height: 24px;
   }
 
   .audio {
@@ -1573,10 +1863,43 @@
   }
 
   .frame-1410104063 {
+    flex-direction: column;
     justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 4px;
     display: flex;
+  }
+  
+  .speed-btn {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .speed-btn:hover:not(.disabled) {
+    background: #e7f3ff;
+    outline-color: #3578e5;
+  }
+  
+  .speed-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  
+  .frame-1410104058 {
+    flex: 1;
+    position: relative;
+    height: 20px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .caretdown {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .frame-1410104059 {
