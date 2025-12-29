@@ -179,11 +179,11 @@
             if (result.success && result.data) {
                 console.log('Story saved successfully:', result.data);
                 // Store story ID in session storage and story creation store
-                if (browser && result.data.id) {
-                    sessionStorage.setItem('currentStoryId', result.data.id.toString());
+                if (browser && result.data.uid) {
+                    sessionStorage.setItem('currentStoryId', result.data.uid.toString());
                     storyCreation.update(state => ({
                         ...state,
-                        storyId: result.data.id.toString()
+                        storyId: result.data.uid.toString()
                     }));
                 }
             } else {
@@ -193,7 +193,7 @@
             console.error('Error saving story to database:', error);
         }
     }
-
+    
     async function generateStory() {
         // if (storyGenerated) return;
         
@@ -207,11 +207,11 @@
             if (storyState.selectedChildProfileId && storyState.selectedChildProfileId !== 'undefined') {
                 try {
                     const { data: childProfile, error: profileError } = await supabase
-                        .from('child_profiles')
-                        .select('age_group')
-                        .eq('id', parseInt(storyState.selectedChildProfileId))
-                        .single();
-                    
+                    .from('child_profiles')
+                    .select('age_group')
+                    .eq('id', parseInt(storyState.selectedChildProfileId))
+                    .single();
+                    console.log('childProfile ==================================================================> ', childProfile);
                     if (!profileError && childProfile?.age_group) {
                         ageGroup = normalizeAgeGroup(childProfile.age_group);
                     }
@@ -295,6 +295,10 @@
                 scenePrompts.push(scenePrompt);
             }
             
+            // Get current user ID for email notification
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
+            
             // Prepare request body matching backend StoryRequest model
             const requestBody: any = {
                 character_name: characterName,
@@ -308,15 +312,20 @@
                 story_text_prompt: storyTextPrompt,
                 scene_prompts: scenePrompts,
                 reading_level: readingLevel,
-                story_title: storyTitle
+                story_title: storyTitle,
+                user_id: userId, // For book completion email
+                child_profile_id: storyState.selectedChildProfileId, // For database record
+                character_style: storyState.characterStyle,
+                enhanced_images: storyState.enhancedImages
             };
             
             // Update progress: Starting story generation (5%)
             storyTextProgress = 5;
+
             
             // Send request to generate-story endpoint
             const storyGenerationEndpoint = 'https://drawtopia-backend.vercel.app';
-            const response = await fetch(`${storyGenerationEndpoint}/generate-story`, {
+            const response = await fetch(`${storyGenerationEndpoint}/generate-story/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -545,6 +554,7 @@
         if (browser) {
             storyCreation.init();
         }
+
         
         // Generate story immediately when page loads
         generateStory();

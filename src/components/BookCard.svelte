@@ -11,6 +11,7 @@
   import simplepencil from "../assets/WhitePencilSimple.svg";
   import simpledownload from "../assets/BlackDownloadSimple.svg";
   import simplesharenetwork from "../assets/BlackShareNetwork.svg";
+  import { goto } from "$app/navigation";
 
   export let item: any;
   
@@ -113,6 +114,14 @@
     if (item?.status === "completed" || item?.status === "generating") {
       dispatch("viewBook", item);
     }
+    if (item?.story_type === "search") {
+      goto(`/intersearch/1?storyId=${item?.uid}`);
+    }
+    if (item?.story_type === "story") {
+      // Pass the story ID to the preview page
+      console.log('[BookCard] Viewing book with ID:', item);
+      goto(`/preview/default?storyId=${item?.uid}`);
+    }
   };
 
   // Handle download PDF button click
@@ -161,7 +170,7 @@
     
     try {
       // Determine backend URL
-      let backendUrl = 'http://localhost:8000';
+      let backendUrl = 'https://drawtopia-backend.vercel.app';
       
       // Check if VITE_API_BASE_URL is set
       if (import.meta.env.VITE_API_BASE_URL) {

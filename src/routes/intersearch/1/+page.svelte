@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
   import { onMount, onDestroy } from "svelte";
+  import { page } from "$app/stores";
   import { supabase } from "../../../lib/supabase";
   import logo from "../../../assets/logo.png";
   import bookCover from "../../../assets/Luna1.png";
@@ -19,7 +20,7 @@
   import { enhance } from "$app/forms";
   import { env } from '../../../lib/env';
   import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
-  import { createStory } from '../../../lib/database/stories';
+  import { createStory, getStoryById } from '../../../lib/database/stories';
   import { storyCreation } from '../../../lib/stores/storyCreation';
   import { get } from 'svelte/store';
 
@@ -38,6 +39,9 @@
   let characterType: string | null = null;
   let specialAbility: string | null = null;
   let storyTitle: string | null = null;
+  let isLoading = true;
+  let loadError = "";
+  let storyId: string | null = null;
 
   // Drag selection state
   let imageWrapperRef: HTMLDivElement | null = null;
@@ -290,20 +294,6 @@
 
         if (data.storage_info?.uploaded && data.storage_info?.url) {
           const cleanUrl = data.storage_info.url.split("?")[0];
-
-          // Save to sessionStorage
-          // Index 0 is cover, indices 1-4 are scenes 1-4
-          if (browser) {
-            if (index === 0) {
-              sessionStorage.setItem('intersearch_cover', data.storage_info.url);
-            } else {
-              sessionStorage.setItem(
-                `intersearch_scene_${index}`,
-                data.storage_info.url,
-              );
-            }
-          }
-
           return cleanUrl;
         } else {
           throw new Error(`No image URL received for scene ${index + 1}`);
@@ -328,7 +318,11 @@
 
       // Save search adventure to Supabase after all scenes are generated
       if (generatedImages.length > 0) {
-        await saveSearchAdventureToDatabase(generatedImages);
+        const savedStoryId = await saveSearchAdventureToDatabase(generatedImages);
+        if (savedStoryId) {
+          // Redirect to the same page with the story ID to display it
+          goto(`/intersearch/1?storyId=${savedStoryId}`);
+        }
       }
     } catch (error) {
       console.error("Error generating images:", error);
@@ -339,7 +333,7 @@
   }
 
   // Save search adventure to Supabase database
-  async function saveSearchAdventureToDatabase(sceneImages: string[]) {
+  async function saveSearchAdventureToDatabase(sceneImages: string[]): Promise<string | null> {
     try {
       // Get story creation state
       const storyState = get(storyCreation);
@@ -350,7 +344,7 @@
       
       if (!childProfileId || childProfileId === 'undefined') {
         console.warn('Cannot save search adventure: No child profile selected');
-        return;
+        return null;
       }
 
       // Get character data from sessionStorage or story state
@@ -372,7 +366,7 @@
 
       if (!originalImage) {
         console.warn('Cannot save search adventure: No original image URL found');
-        return;
+        return null;
       }
 
       // Map world names to database format
@@ -437,15 +431,15 @@
 
       if (result.success && result.data) {
         console.log('Search adventure saved successfully:', result.data);
-        // Store story ID in sessionStorage
-        if (browser && result.data.id) {
-          sessionStorage.setItem('searchAdventure_storyId', result.data.id.toString());
-        }
+        // Return the story UID for navigation
+        return result.data.uid || result.data.id;
       } else {
         console.error('Failed to save search adventure:', result.error);
+        return null;
       }
     } catch (error) {
       console.error('Error saving search adventure to database:', error);
+      return null;
     }
   }
 
@@ -467,74 +461,117 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     if (browser) {
-      selectedWorld = sessionStorage.getItem("intersearch_world");
-      selectedDifficulty = sessionStorage.getItem("intersearch_difficulty");
-      characterImageUrl = sessionStorage.getItem("characterImageUrl");
-      // Also retrieve selected style and enhancement from character creation
-      selectedStyle = sessionStorage.getItem('selectedStyle');
-      selectedEnhancement = sessionStorage.getItem('selectedEnhancement');
-      // Load character and story data
-      characterName = sessionStorage.getItem('characterName');
-      characterType = sessionStorage.getItem('selectedCharacterType');
-      specialAbility = sessionStorage.getItem('specialAbility');
-      storyTitle = sessionStorage.getItem('storyTitle');
-
-      // Determine navigation context
-      const comingFromDashboard = sessionStorage.getItem("intersearch_resume_existing") === "true";
-      // Check if we need to regenerate scenes (from Play Again button)
-      const shouldRegenerate = sessionStorage.getItem("intersearch_regenerate") === "true";
+      // Get story ID from URL query params
+      storyId = $page.url.searchParams.get('storyId');
       
-      if (shouldRegenerate && !comingFromDashboard) {
-        // Clear existing scene images
-        sessionStorage.removeItem('intersearch_cover');
-        for (let i = 1; i <= 4; i++) {
-          sessionStorage.removeItem(`intersearch_scene_${i}`);
-        }
-        // Clear the regeneration flag
-        sessionStorage.removeItem("intersearch_regenerate");
-        // Generate new images
-        if (characterImageUrl && selectedWorld) {
-          generateAllImages();
-        } else {
-          alert("Please complete character setup first");
-          goto("/intersearch");
+      if (storyId) {
+        // Load existing story from database
+        isLoading = true;
+        try {
+          const result = await getStoryById(storyId);
+          
+          if (!result.success || !result.data) {
+            loadError = result.error || "Failed to load story";
+            isLoading = false;
+            console.error("Failed to fetch story:", result.error);
+            return;
+          }
+          
+          const story = result.data;
+          console.log("Loaded interactive search story:", story);
+          
+          // Set story details
+          storyTitle = story[0].story_title || story[0].character_name || "Search Adventure";
+          characterName = story[0].character_name;
+          selectedWorld = story[0].story_world === 'forest' ? 'enchanted-forest' : 
+                          story[0].story_world === 'space' ? 'outer-space' : 
+                          story[0].story_world === 'underwater' ? 'underwater-kingdom' : 
+                          'enchanted-forest';
+          
+          // Load story content to get scenes
+          if (story[0].story_content) {
+            try {
+              const content = typeof story[0].story_content === 'string' 
+                ? JSON.parse(story[0].story_content) 
+                : story[0].story_content;
+              
+              console.log('[intersearch/1] Parsed story content:', content);
+              
+              // Build generatedImages array: [cover, scene1, scene2, scene3, scene4]
+              const images: string[] = [];
+              
+              // Add cover
+              if (content.cover) {
+                images.push(content.cover.split('?')[0]);
+              }
+              
+              // Add scenes
+              if (content.scenes && Array.isArray(content.scenes)) {
+                content.scenes.forEach((scene: any) => {
+                  if (scene.sceneImage) {
+                    images.push(scene.sceneImage.split('?')[0]);
+                  }
+                });
+              }
+              
+              if (images.length > 0) {
+                generatedImages = images;
+                currentSceneIndex = 0;
+                console.log('[intersearch/1] Loaded scene images:', generatedImages);
+              }
+              
+              // Get difficulty from content
+              if (content.difficulty) {
+                selectedDifficulty = content.difficulty;
+              }
+            } catch (error) {
+              console.error('Error parsing story content:', error);
+            }
+          }
+          
+          isLoading = false;
+        } catch (error) {
+          console.error('Error loading story:', error);
+          loadError = error instanceof Error ? error.message : "An unexpected error occurred";
+          isLoading = false;
         }
       } else {
-        // Check if images already exist in sessionStorage
-        const existingImages: string[] = [];
+        // No storyId in URL, check if we need to generate
+        isLoading = false;
         
-        // Check for cover
-        const coverStored = sessionStorage.getItem('intersearch_cover');
-        if (coverStored) {
-          existingImages.push(coverStored.split("?")[0]);
-        }
-        
-        // Check for scenes 1-4
-        for (let i = 1; i <= 4; i++) {
-          const stored = sessionStorage.getItem(`intersearch_scene_${i}`);
-          if (stored) {
-            existingImages.push(stored.split("?")[0]);
-          }
-        }
+        // Load settings from sessionStorage for generation
+        selectedWorld = sessionStorage.getItem("intersearch_world");
+        selectedDifficulty = sessionStorage.getItem("intersearch_difficulty");
+        characterImageUrl = sessionStorage.getItem("characterImageUrl");
+        selectedStyle = sessionStorage.getItem('selectedStyle');
+        selectedEnhancement = sessionStorage.getItem('selectedEnhancement');
+        characterName = sessionStorage.getItem('characterName');
+        characterType = sessionStorage.getItem('selectedCharacterType');
+        specialAbility = sessionStorage.getItem('specialAbility');
+        storyTitle = sessionStorage.getItem('storyTitle');
 
-        if (existingImages.length === 5 && characterImageUrl) {
-          generatedImages = existingImages;
-          currentSceneIndex = 0;
-        } else if (characterImageUrl && selectedWorld && !comingFromDashboard) {
-          // Only auto-generate when not explicitly resuming from dashboard
+        // Check if we should generate
+        const shouldRegenerate = sessionStorage.getItem("intersearch_regenerate") === "true";
+        
+        if (shouldRegenerate) {
+          sessionStorage.removeItem("intersearch_regenerate");
+          // Generate new images
+          if (characterImageUrl && selectedWorld) {
+            generateAllImages();
+          } else {
+            alert("Please complete character setup first");
+            goto("/intersearch");
+          }
+        } else if (characterImageUrl && selectedWorld) {
+          // Auto-generate on first visit
           generateAllImages();
         } else {
-          // No character image or world selected, go back
+          // No setup data available
           alert("Please complete character setup first");
           goto("/intersearch");
         }
-      }
-
-      // Clear the resume flag after handling
-      if (comingFromDashboard) {
-        sessionStorage.removeItem("intersearch_resume_existing");
       }
     }
   });
@@ -554,7 +591,30 @@
   function handleStartScene1() {
     // If on the last scene, navigate to results page
     if (currentSceneIndex === generatedImages.length - 1) {
-      goto("/intersearch/3");
+      // Store the generated scenes in sessionStorage for /intersearch/3
+      if (browser && generatedImages.length > 0) {
+        // Build scenes data to pass to results page
+        const scenesData = {
+          cover: generatedImages[0]?.split('?')[0] || null,
+          scenes: generatedImages.slice(1).map((url, index) => ({
+            sceneNumber: index + 1,
+            sceneImage: url.split('?')[0],
+            sceneTitle: sceneTitles[selectedWorld || "enchanted-forest"]?.[index] || `Scene ${index + 1}`,
+            difficulty: selectedDifficulty || 'medium'
+          })),
+          storyTitle: storyTitle || sessionStorage.getItem('storyTitle') || "Adventure Complete!",
+          characterName: characterName || sessionStorage.getItem('characterName') || "Character",
+          world: selectedWorld || sessionStorage.getItem('intersearch_world') || 'enchanted-forest'
+        };
+        sessionStorage.setItem('intersearch_scenes', JSON.stringify(scenesData));
+      }
+      
+      // Pass storyId to results page if available
+      if (storyId) {
+        goto(`/intersearch/3?storyId=${storyId}`);
+      } else {
+        goto("/intersearch/3");
+      }
     } else if (currentSceneIndex < generatedImages.length - 1) {
       // Show the next scene on the current page
       currentSceneIndex++;
@@ -1101,10 +1161,10 @@
     <div class="preview-header-row">
       <div class="preview-header-title">
         <div class="preview-header-topic">
-          Your Search Adventure : Where is Luna?
+          {storyTitle || "Your Search Adventure"}
         </div>
         <div class="preview-header-note">
-          FREE PREVIEW &#8226; Other pages available after purchased
+          Interactive Search Adventure
         </div>
       </div>
       <div class="preview-header-actions">
@@ -1117,7 +1177,28 @@
       </div>
     </div>
     <div class="rectangle"></div>
-    {#if generating}
+    {#if isLoading}
+      <div class="generating-container">
+        <div class="generating-spinner"></div>
+        <div class="generating-text">
+          Loading your search adventure...
+        </div>
+        <div class="generating-progress">Please wait</div>
+      </div>
+    {:else if loadError}
+      <div class="generating-container">
+        <div class="generating-text" style="color: #f44336;">
+          Error: {loadError}
+        </div>
+        <button 
+          class="preview-start-btn" 
+          on:click={() => window.location.reload()}
+          style="margin-top: 20px;"
+        >
+          Retry
+        </button>
+      </div>
+    {:else if generating}
       <div class="generating-container">
         <div class="generating-spinner"></div>
         <div class="generating-text">
@@ -1246,7 +1327,7 @@
       <button
         class="preview-nav-btn"
         on:click={previousScene}
-        disabled={currentSceneIndex === 0}>{"← Previous"}</button
+        disabled={currentSceneIndex === 0 || isLoading || generating}>{"← Previous"}</button
       >
       <div class="preview-dots">
         {#if generatedImages.length > 0}
@@ -1256,7 +1337,7 @@
               class:active={currentSceneIndex === idx}
               on:click={() => goToScene(idx)}
               aria-label={`Go to scene ${idx + 1}`}
-              disabled={generating}
+              disabled={generating || isLoading}
             >
               {idx + 1}
             </button>
@@ -1292,28 +1373,38 @@
       <button
         class="preview-start-btn"
         on:click={handleStartScene1}
-        disabled={generating || generatedImages.length === 0}
+        disabled={generating || isLoading || generatedImages.length === 0}
       >
-        {generating 
+        {isLoading 
+          ? "Loading..." 
+          : generating 
           ? "Generating..." 
           : currentSceneIndex === generatedImages.length - 1 
             ? "Show Results" 
             : currentSceneIndex === 0 
               ? "Start Scene 1" 
-              : currentSceneIndex === generatedImages.length - 1
-              ? "Show Results"
               : "Next Scene"}
       </button>
     </div>
     <div class="frame-1410104203">
-      <button class="button-nav" on:click={previousScene}>
+      <button 
+        class="button-nav" 
+        on:click={previousScene}
+        disabled={currentSceneIndex === 0 || isLoading || generating}
+      >
         <div class="arrowleft-nav">
           <div class="vector-nav"></div>
         </div>
         <div class="previous"><span class="previous_span">Previous</span></div>
       </button>
-      <button class="button_01-nav" on:click={handleStartScene1}>
-        <div class="next"><span class="next_span">Next</span></div>
+      <button 
+        class="button_01-nav" 
+        on:click={handleStartScene1}
+        disabled={generating || isLoading || generatedImages.length === 0}
+      >
+        <div class="next"><span class="next_span">
+          {currentSceneIndex === generatedImages.length - 1 ? "Results" : "Next"}
+        </span></div>
         <div class="arrowleft_01">
           <div class="vector_01"></div>
         </div>

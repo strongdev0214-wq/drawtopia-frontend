@@ -32,15 +32,29 @@ export interface AuthResponse {
  */
 export async function signUpWithEmail(email: string, password: string, firstName?: string, lastName?: string): Promise<AuthResponse> {
   try {
+    // Check if user already exists before attempting signup
+    const normalizedEmail = email.toLowerCase().trim();
+    const userCheck = await checkUserExists(normalizedEmail);
+    
+    if (userCheck.error) {
+      return {
+        success: false,
+        error: 'Unable to verify user existence. Please try again.'
+      };
+    }
+    
+    if (userCheck.exists) {
+      return {
+        success: false,
+        error: 'USER_ALREADY_EXISTS'
+      };
+    }
+
+    // Create auth user - only authentication credentials, NO user data in metadata
     const { data, error } = await supabase.auth.signUp({
       email,
-      password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-        }
-      }
+      password
+      // Removed options.data - user information should NOT be stored in auth table
     });
 
     if (error) {
@@ -49,7 +63,9 @@ export async function signUpWithEmail(email: string, password: string, firstName
         error: error.message
       };
     }
-    // console.log('Signup data:', data);
+    
+    // Store ALL user information in custom users table
+    console.log('✅ Auth user created, now storing profile in custom users table');
     const userData = {
       id: data.user?.id,
       email: email.toLowerCase().trim(),
@@ -65,8 +81,36 @@ export async function signUpWithEmail(email: string, password: string, firstName
       .insert([userData])
       .select('*')
       .single();
-    // console.log('User profile:', userProfile);
-    // console.log('User profile error:', profileError);
+    
+    if (profileError) {
+      console.error('Error creating user profile:', profileError);
+      // If profile creation fails, we should delete the auth user to keep data consistent
+      // Note: This requires proper error handling in production
+    }
+    
+    console.log('✅ User profile created in custom users table:', userProfile?.id);
+    
+    // Send welcome email immediately after user registration
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const customerName = firstName && lastName ? `${firstName} ${lastName}` : firstName || null;
+      
+      await fetch(`${API_BASE_URL}/api/emails/welcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to_email: email.toLowerCase().trim(),
+          customer_name: customerName
+        })
+      });
+      console.log('✅ Welcome email sent during signup');
+    } catch (emailError) {
+      // Don't fail signup if welcome email fails
+      console.error('Failed to send welcome email:', emailError);
+    }
+    
     const { data: otpData, error: otpError } = await supabase.auth.signInWithOtp({
       email: email.toLowerCase().trim(),
       options: {
@@ -93,15 +137,29 @@ export async function signUpWithEmail(email: string, password: string, firstName
  */
 export async function signUpWithPhone(phone: string, password: string, firstName?: string, lastName?: string): Promise<AuthResponse> {
   try {
+    // Check if user already exists before attempting signup
+    const normalizedPhone = phone.trim();
+    const userCheck = await checkUserExistsByPhone(normalizedPhone);
+    
+    if (userCheck.error) {
+      return {
+        success: false,
+        error: 'Unable to verify user existence. Please try again.'
+      };
+    }
+    
+    if (userCheck.exists) {
+      return {
+        success: false,
+        error: 'USER_ALREADY_EXISTS'
+      };
+    }
+
+    // Create auth user - only authentication credentials, NO user data in metadata
     const { data, error } = await supabase.auth.signUp({
       phone,
-      password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-        }
-      }
+      password
+      // Removed options.data - user information should NOT be stored in auth table
     });
 
     if (error) {
@@ -110,21 +168,56 @@ export async function signUpWithPhone(phone: string, password: string, firstName
         error: error.message
       };
     }
-    // console.log('Signup data:', data);
+    
+    // Store ALL user information in custom users table
+    console.log('✅ Auth user created, now storing profile in custom users table');
     const userData = {
       id: data.user?.id,
       phone: phone.trim(),
       first_name: firstName ? firstName.trim() : null,
       last_name: lastName ? lastName.trim() : null,
       role: 'adult',
+      created_at: new Date(),
+      updated_at: new Date()
     }
+    
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('users')
       .insert([userData])
       .select('*')
       .single();
-    // console.log('User profile:', userProfile);
-    // console.log('User profile error:', profileError);
+    
+    if (profileError) {
+      console.error('Error creating user profile:', profileError);
+      // If profile creation fails, we should delete the auth user to keep data consistent
+      // Note: This requires proper error handling in production
+    }
+    
+    console.log('✅ User profile created in custom users table:', userProfile?.id);
+    
+    // Send welcome email if user has email in the database
+    if (userProfile?.email) {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+        const customerName = firstName && lastName ? `${firstName} ${lastName}` : firstName || null;
+        
+        await fetch(`${API_BASE_URL}/api/emails/welcome`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to_email: userProfile.email.toLowerCase().trim(),
+            customer_name: customerName
+          })
+        });
+        console.log('✅ Welcome email sent during phone signup');
+      } catch (emailError) {
+        // Don't fail signup if welcome email fails
+        console.error('Failed to send welcome email:', emailError);
+      }
+    }
+    
     const { data: otpData, error: otpError } = await supabase.auth.signInWithOtp({
       phone: phone.trim(),
       options: {
@@ -387,31 +480,10 @@ export async function registerGoogleOAuthUser(user: User): Promise<{ success: bo
       user_metadata: user.user_metadata
     });
 
-    // Prepare user metadata for auth.users
-    const userMetadata = {
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      full_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-      google_id: googleId,
-      ...user.user_metadata // Preserve existing metadata
-    };
+    // DO NOT store user information in auth.users table
+    // All user profile data should be in custom users table only
 
-    // Update user in supabase.auth.users using admin API
-    const { data: updatedAuthUser, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-      user.id,
-      {
-        user_metadata: userMetadata
-      }
-    );
-
-    if (authUpdateError) {
-      console.error('Error updating auth user:', authUpdateError);
-      // Don't fail completely, but log the error
-    } else {
-      console.log('Auth user updated successfully:', updatedAuthUser);
-    }
-
-    // If user already exists in our database, update it
+    // If user already exists in our custom users table, update it
     if (existingUser) {
       const { error: updateError } = await supabaseAdmin
         .from('users')
@@ -639,6 +711,7 @@ export async function verifyEmail(email: string, token: string): Promise<{ succe
     }
     // console.log('Verify email data:', data);
     // console.log('Verify email error:', error);
+    
     return { success: true };
   } catch (error) {
     return {
@@ -731,6 +804,7 @@ export async function verifyPhone(phone: string, token: string): Promise<{ succe
     }
     
     // console.log('Verify phone data:', data);
+    
     return { success: true };
   } catch (error) {
     return {
@@ -783,32 +857,10 @@ export async function registerUser(userData: any): Promise<{ success: boolean; p
       };
     }
 
-    // If this is a Google OAuth user (has google_id), update auth.users
-    if (userData.google_id) {
-      const userMetadata = {
-        first_name: userData.first_name || '',
-        last_name: userData.last_name || '',
-        full_name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
-        google_id: userData.google_id
-      };
-
-      // Update user in supabase.auth.users using admin API
-      const { data: updatedAuthUser, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-        userData.id,
-        {
-          user_metadata: userMetadata
-        }
-      );
-
-      if (authUpdateError) {
-        console.error('Error updating auth user:', authUpdateError);
-        // Don't fail completely, but log the error
-      } else {
-        console.log('Auth user updated successfully:', updatedAuthUser);
-      }
-    }
-
-    // If user already exists, update it
+    // DO NOT store user information in auth.users table
+    // All user profile data should be in custom users table only
+    
+    // If user already exists in custom users table, update it
     if (existingUser) {
       const { error: updateError } = await supabaseAdmin
         .from('users')

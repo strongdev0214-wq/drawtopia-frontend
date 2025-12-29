@@ -32,6 +32,18 @@
     let isUploading = false;
     let uploadProgress = 0;
     let fileInput: HTMLInputElement | null = null;
+    
+    // Subscription state
+    let subscriptionStatus = "free";
+    let planType = "";
+    let currentPeriodEnd: Date | null = null;
+    let isSubscriptionActive = false;
+    let isCancelling = false;
+    let showCancelConfirmModal = false;
+    let stripeSubscriptionId: string | null = null;
+    
+    // API Base URL
+    const API_BASE_URL = "https://drawtopia-backend.vercel.app";
 
     // Get name and email from auth session (stored in localStorage by Supabase)
     function getAuthInfo() {
@@ -115,9 +127,152 @@
                         }
                     }
                 }
+                
+                // Fetch subscription details
+                await fetchSubscriptionDetails(authState.user.id);
             } catch (error) {
                 console.error("Error fetching user profile:", error);
             }
+        }
+    }
+    
+    // Fetch subscription details from subscriptions table and users table
+    async function fetchSubscriptionDetails(userId: string) {
+        try {
+            // First, get the user's subscription_status from users table
+            const { data: userData, error: userError } = await supabase
+                .from("users")
+                .select("subscription_status")
+                .eq("id", userId)
+                .single();
+            
+            // Then, check if there's an active subscription in subscriptions table
+            const { data: subscriptionData, error: subscriptionError } = await supabase
+                .from("subscriptions")
+                .select("*")
+                .eq("user_id", userId)
+                .eq("status", "active")
+                .single();
+            
+            // Logic: 
+            // - If subscriptions.status = 'active' AND users.subscription_status = 'premium' → Premium Plan
+            // - Otherwise → Free Plan
+            const hasActiveSubscription = subscriptionData && !subscriptionError;
+            const userIsPremium = userData?.subscription_status === "premium";
+            
+            if (hasActiveSubscription && userIsPremium) {
+                // Premium Plan - both conditions met
+                isSubscriptionActive = true;
+                subscriptionStatus = "premium";
+                subscriptionPlan = "Premium Plan";
+                planType = subscriptionData.plan_type || "monthly";
+                stripeSubscriptionId = subscriptionData.stripe_subscription_id || null;
+                if (subscriptionData.current_period_end) {
+                    currentPeriodEnd = new Date(subscriptionData.current_period_end);
+                }
+            } else {
+                // Free Plan - subscription not active
+                isSubscriptionActive = false;
+                subscriptionStatus = "free";
+                subscriptionPlan = "Free Plan";
+                planType = "";
+                currentPeriodEnd = null;
+                stripeSubscriptionId = null;
+            }
+        } catch (error) {
+            console.error("Error fetching subscription details:", error);
+            // Default to Free Plan on error
+            isSubscriptionActive = false;
+            subscriptionStatus = "free";
+            subscriptionPlan = "Free Plan";
+        }
+    }
+    
+    // Format date for display
+    function formatDate(date: Date | null): string {
+        if (!date) return "";
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+    
+    // Format subscription status for display
+    function formatSubscriptionStatus(status: string | null | undefined): string {
+        if (!status) return "Free Plan";
+        
+        const statusMap: { [key: string]: string } = {
+            'premium': 'Premium Plan',
+            'free plan': 'Free Plan',
+            'free': 'Free Plan',
+            'trial': 'Trial Plan',
+            'basic': 'Basic Plan'
+        };
+        
+        const normalizedStatus = status.toLowerCase();
+        return statusMap[normalizedStatus] || status.charAt(0).toUpperCase() + status.slice(1) + ' Plan';
+    }
+    
+    // Show cancel confirmation modal
+    function showCancelConfirmation() {
+        showCancelConfirmModal = true;
+    }
+    
+    // Close cancel confirmation modal
+    function closeCancelConfirmation() {
+        showCancelConfirmModal = false;
+    }
+    
+    // Handle subscription cancellation
+    async function handleCancelSubscription() {
+        if (isCancelling) return;
+        isCancelling = true;
+        
+        try {
+            const authState = get(auth);
+            if (!authState.session?.access_token) {
+                throw new Error("Not authenticated");
+            }
+            
+            if (!stripeSubscriptionId) {
+                throw new Error("No active subscription found");
+            }
+            
+            const response = await fetch(`${API_BASE_URL}/api/subscriptions/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authState.session.access_token}`
+                },
+                body: JSON.stringify({
+                    stripe_subscription_id: stripeSubscriptionId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.detail || 'Failed to cancel subscription');
+            }
+            
+            // Update local state
+            isSubscriptionActive = false;
+            subscriptionStatus = "free";
+            subscriptionPlan = "Free Plan";
+            planType = "";
+            currentPeriodEnd = null;
+            stripeSubscriptionId = null;
+            
+            // Close modal and show success message
+            showCancelConfirmModal = false;
+            alert("Your subscription has been cancelled successfully. You'll retain access until the end of your current billing period.");
+            
+        } catch (error) {
+            console.error('Error cancelling subscription:', error);
+            alert(error instanceof Error ? error.message : 'Failed to cancel subscription. Please try again.');
+        } finally {
+            isCancelling = false;
         }
     }
 
@@ -423,6 +578,57 @@
                 </div>
             </div>
             
+            <div class="rectangle-subscription"></div>
+            
+            <!-- Subscription Management Section -->
+            <div class="form_subscription">
+                <div class="frame-subscription">
+                    <div class="form-label-wrapper">
+                        <div><span class="subscription_span">Subscription Plan</span></div>
+                    </div>
+                    <div class="form-subtitle">
+                        <span class="formsubtitle_span">Manage your subscription</span>
+                    </div>
+                    
+                    <div class="subscription-content">
+                        <div class="subscription-status-row">
+                            <span class="status-label">Current Plan:</span>
+                            <div class="subscription-plan-badge" class:premium={isSubscriptionActive} class:free={!isSubscriptionActive}>
+                                <span class="plan-name">{formatSubscriptionStatus(subscriptionStatus)}</span>
+                            </div>
+                        </div>
+                        
+                        {#if isSubscriptionActive}
+                            <div class="subscription-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Billing Cycle:</span>
+                                    <span class="detail-value">{planType === 'yearly' ? 'Yearly ($179.88/year)' : 'Monthly ($14.99/month)'}</span>
+                                </div>
+                                {#if currentPeriodEnd}
+                                    <div class="detail-row">
+                                        <span class="detail-label">Next Billing Date:</span>
+                                        <span class="detail-value">{formatDate(currentPeriodEnd)}</span>
+                                    </div>
+                                {/if}
+                            </div>
+                            
+                            <div class="subscription-actions">
+                                <button class="cancel-subscription-button" on:click={showCancelConfirmation} disabled={isCancelling}>
+                                    <span>{isCancelling ? 'Cancelling...' : 'Cancel Subscription'}</span>
+                                </button>
+                            </div>
+                        {:else}
+                            <div class="subscription-upgrade-cta">
+                                <p class="cta-description">Upgrade to Premium to unlock unlimited stories and premium features!</p>
+                                <button class="upgrade-button" on:click={() => goto('/pricing')}>
+                                    <span>Upgrade to Premium</span>
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+            
             <!-- Action Buttons -->
             <div class="action-buttons">
                 <button class="cancel-button" on:click={handleCancel} disabled={isSaving}>
@@ -435,6 +641,36 @@
         </div>
     </div>
 </div>
+
+<!-- Cancel Subscription Confirmation Modal -->
+{#if showCancelConfirmModal}
+    <div class="modal-overlay" on:click={closeCancelConfirmation} on:keydown={(e) => e.key === 'Escape' && closeCancelConfirmation()} role="button" tabindex="0">
+        <div class="modal-content" on:click|stopPropagation on:keydown|stopPropagation role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title" tabindex="-1">
+            <div class="modal-header">
+                <h2 id="cancel-modal-title" class="modal-title">Cancel Subscription?</h2>
+            </div>
+            <div class="modal-body">
+                <p class="modal-text">Are you sure you want to cancel your subscription?</p>
+                <ul class="cancel-info-list">
+                    <li>You'll lose access to premium features at the end of your current billing period</li>
+                    <li>Your stories and data will remain saved</li>
+                    <li>You can resubscribe anytime</li>
+                </ul>
+                {#if currentPeriodEnd}
+                    <p class="access-until-text">You'll have access until <strong>{formatDate(currentPeriodEnd)}</strong></p>
+                {/if}
+            </div>
+            <div class="modal-actions">
+                <button class="modal-cancel-button" on:click={closeCancelConfirmation} disabled={isCancelling}>
+                    <span>Keep Subscription</span>
+                </button>
+                <button class="modal-confirm-button" on:click={handleCancelSubscription} disabled={isCancelling}>
+                    <span>{isCancelling ? 'Cancelling...' : 'Yes, Cancel'}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
 
 <style>
 .accountsettings_01_span {
@@ -732,6 +968,329 @@
     display: inline-flex;
 }
 
+/* Subscription Section Styles */
+.rectangle-subscription {
+    align-self: stretch;
+    height: 1px;
+    background: #D9D9D9;
+    margin: 24px 0;
+}
+
+.form_subscription {
+    align-self: stretch;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 4px;
+    display: inline-flex;
+}
+
+.frame-subscription {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 4px;
+    display: inline-flex;
+    width: 100%;
+}
+
+.subscription_span {
+    color: black;
+    font-size: 20px;
+    font-family: Quicksand;
+    font-weight: 600;
+    line-height: 28px;
+    word-wrap: break-word;
+}
+
+.subscription-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.subscription-status-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status-label {
+    color: #727272;
+    font-size: 16px;
+    font-family: DM Sans;
+    font-weight: 400;
+}
+
+.subscription-plan-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 14px;
+    border-radius: 16px;
+}
+
+.subscription-plan-badge.premium {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    box-shadow: 0px 2px 8px rgba(255, 165, 0, 0.3);
+}
+
+.subscription-plan-badge.free {
+    background: #E8E8E8;
+}
+
+.plan-name {
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    color: #333;
+}
+
+.subscription-plan-badge.premium .plan-name {
+    color: #5C4800;
+}
+
+.subscription-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: #F9F9F9;
+    border-radius: 12px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-label {
+    color: #727272;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 400;
+}
+
+.detail-value {
+    color: #333;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 600;
+}
+
+.subscription-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.cancel-subscription-button {
+    padding: 12px 24px;
+    background: white;
+    border: 1px solid #FF4D4D;
+    border-radius: 12px;
+    color: #FF4D4D;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cancel-subscription-button:hover:not(:disabled) {
+    background: #FFF5F5;
+    border-color: #E53E3E;
+}
+
+.cancel-subscription-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.subscription-upgrade-cta {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: linear-gradient(135deg, #F0F7FF 0%, #E8F0FE 100%);
+    border-radius: 12px;
+    border: 1px solid #D4E4FF;
+}
+
+.cta-description {
+    color: #333;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 400;
+    margin: 0;
+}
+
+.upgrade-button {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #438BFF 0%, #6C63FF 100%);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: fit-content;
+    box-shadow: 0px 4px 12px rgba(67, 139, 255, 0.3);
+}
+
+.upgrade-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0px 6px 16px rgba(67, 139, 255, 0.4);
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 20px;
+    padding: 24px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0px 8px 32px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    margin-bottom: 16px;
+}
+
+.modal-title {
+    font-size: 22px;
+    font-family: Quicksand;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.modal-body {
+    margin-bottom: 24px;
+}
+
+.modal-text {
+    font-size: 16px;
+    font-family: DM Sans;
+    color: #555;
+    margin: 0 0 16px 0;
+}
+
+.cancel-info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+}
+
+.cancel-info-list li {
+    position: relative;
+    padding-left: 24px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-family: DM Sans;
+    color: #666;
+}
+
+.cancel-info-list li::before {
+    content: "•";
+    position: absolute;
+    left: 8px;
+    color: #999;
+}
+
+.access-until-text {
+    font-size: 14px;
+    font-family: DM Sans;
+    color: #438BFF;
+    margin: 0;
+    padding: 12px;
+    background: #F0F7FF;
+    border-radius: 8px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.modal-cancel-button {
+    padding: 12px 24px;
+    background: #438BFF;
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-cancel-button:hover:not(:disabled) {
+    background: #3570E0;
+}
+
+.modal-cancel-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.modal-confirm-button {
+    padding: 12px 24px;
+    background: white;
+    border: 1px solid #FF4D4D;
+    border-radius: 12px;
+    color: #FF4D4D;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-confirm-button:hover:not(:disabled) {
+    background: #FFF5F5;
+}
+
+.modal-confirm-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .frame-1410103869 {
     justify-content: flex-start;
     align-items: flex-start;
@@ -943,6 +1502,58 @@
     .navbar {
         padding-left: 12px;
         padding-right: 12px;
+    }
+
+    /* Subscription Mobile Styles */
+    .subscription-status-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .subscription-details {
+        padding: 12px;
+    }
+    
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .subscription-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .cancel-subscription-button,
+    .upgrade-button {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+    
+    .modal-content {
+        padding: 20px;
+        margin: 16px;
+    }
+    
+    .modal-title {
+        font-size: 18px;
+    }
+    
+    .modal-actions {
+        flex-direction: column-reverse;
+    }
+    
+    .modal-cancel-button,
+    .modal-confirm-button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .rectangle-subscription {
+        margin: 16px 0;
     }
 
     .icon-list {

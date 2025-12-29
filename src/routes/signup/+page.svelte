@@ -58,7 +58,7 @@
   let lastName = "";
   let isLoading = false;
   let errors: { [key: string]: string } = {};
-  let signupMethod: "phone" | "email" = "phone";
+  let signupMethod: "phone" | "email" = "email";
   let accountType = "adult";
   let acceptedTerms = false;
   // let selectedCountry = { name: 'United States', code: '+1', flag: '🇺🇸' };
@@ -229,8 +229,21 @@
           goto(`/otp-phone?phone=${encodeURIComponent(phoneToUse)}`);
         }
       } else {
+        // Handle user already exists error
+        if (result.error === 'USER_ALREADY_EXISTS') {
+          const contactMethod = signupMethod === "email" ? "email address" : "phone number";
+          addNotification({
+            type: 'error',
+            message: `An account with this ${contactMethod} already exists. Please login instead.`,
+            duration: 7000
+          });
+          // Optionally redirect to login page after a delay
+          setTimeout(() => {
+            goto("/login");
+          }, 3000);
+        }
         // Handle signup error with specific rate limiting message
-        if (result.error && (result.error.includes('over_sms_send_rate_limit') || result.error.includes('rate limit'))) {
+        else if (result.error && (result.error.includes('over_sms_send_rate_limit') || result.error.includes('rate limit'))) {
           errors.general = "Please wait 3 seconds before requesting another SMS code.";
         } else {
           errors.general = result.error || "Signup failed. Please try again.";

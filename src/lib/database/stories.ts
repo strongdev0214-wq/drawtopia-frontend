@@ -50,9 +50,11 @@ export async function createStory(story: Story): Promise<DatabaseResult> {
       }
     }
 
+    const uid: string = crypto.randomUUID();
     const { data, error } = await supabase
       .from('stories')
       .insert([{
+        uid: uid,
         child_profile_id: story.child_profile_id,
         character_name: story.character_name,
         character_type: story.character_type,
@@ -67,7 +69,7 @@ export async function createStory(story: Story): Promise<DatabaseResult> {
         cover_design: story.cover_design,
         story_content: storyContentValue,
         scene_images: story.scene_images || [],
-        audio_urls: story.audio_urls || [],
+        audio_url: story.audio_urls || [],
         status: story.status || 'generating',
         story_type: story.story_type || 'story'
       }])
@@ -175,8 +177,17 @@ export async function getStoriesForChild(childProfileId: string): Promise<Databa
  */
 export async function getAllStoriesForParent(parentId: string): Promise<DatabaseResult> {
   try {
+    // Validate parentId
+    if (!parentId || typeof parentId !== 'string' || parentId.trim() === '' || parentId === 'undefined' || parentId === 'null') {
+      console.error('[getAllStoriesForParent] Invalid parentId:', parentId);
+      return {
+        success: false,
+        error: 'Invalid parent ID provided'
+      };
+    }
+    
     // Determine backend URL
-    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    let backendUrl = 'https://drawtopia-backend.vercel.app'; // http://localhost:8000
     
     // Call Python backend API
     const endpoint = `${backendUrl}/api/books/?parent_id=${encodeURIComponent(parentId)}`;
@@ -216,13 +227,13 @@ export async function getAllStoriesForParent(parentId: string): Promise<Database
  * Get all characters from the backend API
  * @returns Promise with character data
  */
-export async function getAllCharacters(): Promise<DatabaseResult> {
+export async function getAllCharacters(parentId: string): Promise<DatabaseResult> {
   try {
     // Determine backend URL
-    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    let backendUrl = 'https://drawtopia-backend.vercel.app'; // http://localhost:8000
     
     // Call Python backend API
-    const endpoint = `${backendUrl}/api/characters`;
+    const endpoint = `${backendUrl}/api/characters/?parent_id=${encodeURIComponent(parentId)}`;
     
     const response = await fetch(endpoint, {
       method: 'GET',
@@ -271,16 +282,10 @@ export async function getStoryById(storyId: string): Promise<DatabaseResult> {
   try {
     const { data, error } = await supabase
       .from('stories')
-      .select(`
-        *,
-        child_profiles (
-          id,
-          first_name,
-          age_group
-        )
-      `)
-      .eq('id', storyId)
-      .single();
+      .select('*')
+      .eq('uid', storyId)
+
+    console.log('[getStoryById] Data:', data);
 
     if (error) {
       console.error('Error fetching story:', error);

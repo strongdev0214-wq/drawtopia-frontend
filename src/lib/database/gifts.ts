@@ -90,6 +90,40 @@ export async function createGift(gift: Gift): Promise<DatabaseResult> {
       };
     }
 
+    // Queue gift notification email
+    try {
+      const { queueGiftNotificationEmail } = await import('../emails');
+      
+      // Get user's name for the email
+      const giverName = user.user_metadata?.full_name || 
+                        user.user_metadata?.name || 
+                        user.email?.split('@')[0] || 
+                        'Someone special';
+      
+      // Determine delivery method
+      const deliveryMethod = gift.delivery_time ? 'scheduled_delivery' : 'immediate_email';
+      
+      const emailResult = await queueGiftNotificationEmail(
+        recipientEmail,
+        gift.child_name,
+        giverName,
+        gift.occasion,
+        gift.special_msg || '',
+        deliveryMethod,
+        gift.delivery_time // ISO datetime string
+      );
+      
+      if (emailResult.success) {
+        console.log('✅ Gift notification email queued');
+      } else {
+        console.warn('⚠️ Failed to queue gift notification email:', emailResult.error);
+        // Don't fail the gift creation if email fails
+      }
+    } catch (emailError) {
+      console.error('Error queueing gift notification email:', emailError);
+      // Don't fail the gift creation if email fails
+    }
+
     return {
       success: true,
       data: data

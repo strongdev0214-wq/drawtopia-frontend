@@ -195,7 +195,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     try {
       loading = true;
       error = "";
-
+      
       const result = await getChildProfiles(userId);
 
       if (result.success && result.data) {
@@ -273,6 +273,14 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   // Fetch stories for the user
   const fetchStories = async (userId: string) => {
     try {
+      // Validate userId
+      if (!userId || typeof userId !== 'string' || userId.trim() === '' || userId === 'undefined' || userId === 'null') {
+        console.error('[Dashboard] Invalid userId:', userId);
+        storiesError = 'Invalid user ID';
+        loadingStories = false;
+        return;
+      }
+      
       loadingStories = true;
       storiesError = "";
       
@@ -511,6 +519,9 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   // Handle view book button click from BookCard
   
 
+  // Track the last fetched user ID to prevent duplicate fetches
+  let lastFetchedUserId: string | null = null;
+
   // Fetch profiles, stories, and gifts when component mounts and user is available
   onMount(() => {
     // Check initial screen size
@@ -522,13 +533,20 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     }
     
     const unsubscribe = user.subscribe(($user) => {
-      if ($user?.id) {
+      // Only fetch if user ID has changed (prevent duplicate fetches on every store update)
+      if ($user?.id && $user.id !== lastFetchedUserId) {
+        console.log('[Dashboard] User ID changed, fetching data for:', $user.id);
+        lastFetchedUserId = $user.id;
+        
         fetchChildProfiles($user.id);
         fetchStories($user.id);
         fetchGifts();
         fetchSubscriptionStatus($user.id);
-      } else {
-        // Reset state if no user
+      } else if (!$user?.id && lastFetchedUserId !== null) {
+        // Reset state if user logged out
+        console.log('[Dashboard] User logged out, clearing data');
+        lastFetchedUserId = null;
+        
         childProfiles = [];
         stories = [];
         rawStories = [];
@@ -824,7 +842,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     </div>
     <div class="sidebar">
       {#if activeMenu === "home"}
-        <HomeLibraryView {handleAddChildren} {handleCharacterPreview} />
+        <HomeLibraryView {handleAddChildren} {handleCharacterPreview} {handleNewStory} />
       {/if}
         
       <!-- Reading Stats Component -->

@@ -7,9 +7,11 @@
   import MobileBackBtn from "../../../components/MobileBackBtn.svelte";
   import PersonInfo from "../../../components/PersonInfo.svelte";
   import PhotoGuideModal from "../../../components/PhotoGuideModal.svelte";
+  import AdvancedSelect from "../../../components/AdvancedSelect.svelte";
   import { user, authLoading, isAuthenticated } from "../../../lib/stores/auth";
-  import { getChildProfiles, type ChildProfile } from "../../../lib/database/childProfiles";
+  import { getChildProfiles, updateChildProfile, type ChildProfile } from "../../../lib/database/childProfiles";
   import { addNotification } from "../../../lib/stores/notification";
+  import { uploadAvatar } from "../../../lib/storage";
 
   // Get child ID from URL params
   let childId: string = "";
@@ -23,6 +25,31 @@
   let ageGroup = "";
   let relationship = "";
   let avatarUrl = "";
+
+  // Image upload related variables
+  let fileInput: HTMLInputElement;
+  let selectedImage: File | null = null;
+  let imagePreviewUrl: string | null = null;
+  let uploading = false;
+  let uploadError = "";
+  let uploadProgress = 0;
+
+  // Options for AdvancedSelect components
+  const ageGroupOptions = [
+    { value: "0-2", label: "👶 Ages 0-2 (tiny - Explorers)" },
+    { value: "3-5", label: "👧 Ages 3-5 (Imagination Builders)" },
+    { value: "6-7", label: "🧒 Ages 6-7 (Early Adventurers)" },
+    { value: "8-10", label: "👦 Ages 8-10 (Creative Storyteller)" },
+    { value: "11-12", label: "👦🏽 Ages 11-12 (Young Authors)" }
+  ];
+
+  const relationshipOptions = [
+    { value: "Parent", label: "Parent" },
+    { value: "Guardian", label: "Guardian" },
+    { value: "Grandparent", label: "Grandparent" },
+    { value: "Aunt/Uncle", label: "Aunt/Uncle" },
+    { value: "Other", label: "Other" }
+  ];
 
   // Reactive statements for auth state (following main page pattern)
   $: currentUser = $user;
@@ -118,25 +145,159 @@
     avatarUrl = newAvatarUrl;
   };
 
-  const handleUpdateChild = () => {
-    const childData = {
-      id: childProfile?.id,
-      name: firstName,
-      ageGroup: ageGroup,
-      relationship: relationship,
-      avatarUrl: avatarUrl
+  const handleImageUpload = () => {
+    fileInput.click();
+  };
+
+  const processImageFile = async (file: File) => {
+    if (!file || !file.type.startsWith("image/")) {
+      uploadError = "Please select a valid image file";
+      addNotification({
+        type: 'error',
+        message: 'Please select a valid image file (PNG, JPG, or WebP)'
+      });
+      return;
+    }
+
+    selectedImage = file;
+    uploadError = "";
+
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imagePreviewUrl = e.target?.result as string;
     };
-    
-    console.log("Updating child:", childData);
-    
-    // TODO: Implement actual update functionality
-    addNotification({
-      type: 'success',
-      message: `${firstName}'s profile has been updated successfully!`
-    });
-    
-    // Navigate back to dashboard
-    goto('/dashboard');
+    reader.readAsDataURL(file);
+
+    // Upload to Supabase
+    if (!userId) {
+      uploadError = "User not authenticated. Please log in to upload images.";
+      addNotification({
+        type: 'error',
+        message: 'Please log in to upload images'
+      });
+      return;
+    }
+
+    uploadProgress = 0;
+    uploading = true;
+    try {
+      const result = await uploadAvatar(file, userId, (p: number) => {
+        uploadProgress = Math.max(0, Math.min(100, Math.round(p)));
+      });
+
+      if (result.success && result.url) {
+        avatarUrl = result.url;
+        uploadProgress = 100;
+        console.log("Avatar uploaded successfully:", result.url);
+        addNotification({
+          type: 'success',
+          message: 'Image uploaded successfully!'
+        });
+      } else {
+        uploadError = result.error || "Failed to upload avatar";
+        console.error("Upload failed:", result.error);
+        uploadProgress = 0;
+        addNotification({
+          type: 'error',
+          message: result.error || 'Failed to upload image'
+        });
+      }
+    } catch (error) {
+      uploadError = "An error occurred while uploading";
+      console.error("Upload error:", error);
+      uploadProgress = 0;
+      addNotification({
+        type: 'error',
+        message: 'An error occurred while uploading the image'
+      });
+    } finally {
+      uploading = false;
+    }
+  };
+
+  const handleFileSelect = async (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
+  const handleUpdateChild = async () => {
+    // Validation
+    if (!firstName.trim()) {
+      addNotification({
+        type: 'error',
+        message: 'Please enter the child\'s first name'
+      });
+      return;
+    }
+
+    if (!ageGroup) {
+      addNotification({
+        type: 'error',
+        message: 'Please select an age group'
+      });
+      return;
+    }
+
+    if (!relationship) {
+      addNotification({
+        type: 'error',
+        message: 'Please select your relationship'
+      });
+      return;
+    }
+
+    if (!childProfile?.id || !userId) {
+      addNotification({
+        type: 'error',
+        message: 'Invalid profile data'
+      });
+      return;
+    }
+
+    // Show loading state
+    uploading = true;
+
+    try {
+      // Update child profile in database
+      const result = await updateChildProfile(
+        childProfile.id,
+        {
+          first_name: firstName.trim(),
+          age_group: ageGroup,
+          relationship: relationship,
+          avatar_url: avatarUrl
+        },
+        userId
+      );
+
+      if (result.success) {
+        addNotification({
+          type: 'success',
+          message: `${firstName}'s profile has been updated successfully!`
+        });
+        
+        // Navigate back to dashboard
+        goto('/dashboard');
+      } else {
+        addNotification({
+          type: 'error',
+          message: result.error || 'Failed to update profile'
+        });
+      }
+    } catch (error) {
+      console.error('Error updating child profile:', error);
+      addNotification({
+        type: 'error',
+        message: 'An unexpected error occurred while updating the profile'
+      });
+    } finally {
+      uploading = false;
+    }
   };
 
   const handleContinueToStoryCreation = () => {
@@ -213,12 +374,40 @@
                         Upload a photo of {firstName || 'Child'}
                       </span>
                     </div>
-                    <div class="image" style="cursor: pointer;">
-                      {#if avatarUrl && avatarUrl !== 'https://placehold.co/40x40'}
+                    <!-- Hidden file input -->
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg, image/webp"
+                      bind:this={fileInput}
+                      on:change={handleFileSelect}
+                      style="display: none;"
+                    />
+                    <div 
+                      class="image" 
+                      style="cursor: pointer;"
+                      on:click={handleImageUpload}
+                      on:keydown={(e) => e.key === "Enter" && handleImageUpload()}
+                      role="button"
+                      tabindex="0"
+                    >
+                      {#if uploading}
+                        <div class="upload-progress">
+                          <div class="spinner"></div>
+                          <span class="upload-text">Uploading... {uploadProgress}%</span>
+                        </div>
+                      {:else if (imagePreviewUrl || avatarUrl) && avatarUrl !== 'https://placehold.co/40x40'}
                         <div class="image-preview">
-                          <img src={avatarUrl} alt="{firstName}'s avatar" class="preview-image" />
+                          <img 
+                            src={imagePreviewUrl || avatarUrl} 
+                            alt="{firstName}'s avatar" 
+                            class="preview-image" 
+                          />
                           <div class="image-overlay">
-                            <button class="change-image-btn" type="button">
+                            <button 
+                              class="change-image-btn" 
+                              type="button"
+                              on:click|stopPropagation={handleImageUpload}
+                            >
                               Change Image
                             </button>
                           </div>
@@ -235,12 +424,17 @@
                               </span>
                             </div>
                             <div class="png-jpg-gif-up-to-10mb">
-                              <span class="pngjpggifupto10mb_span">PNG, JPG, GIF Up to 10MB</span>
+                              <span class="pngjpggifupto10mb_span">PNG, JPG, WebP Up to 5MB</span>
                             </div>
                           </div>
                         </div>
                       {/if}
                     </div>
+                    {#if uploadError}
+                      <div class="upload-error">
+                        <span class="error-text">{uploadError}</span>
+                      </div>
+                    {/if}
                   </div>
                   <div class="frame-1410104082">
                     <div class="make-sure-only-one-person-in-clearly-visible-see-details">
@@ -278,46 +472,43 @@
                   <div class="age-group">
                     <span class="agegroup_span">Age Group*</span>
                   </div>
-                  <div class="select-field">
-                    <select bind:value={ageGroup} class="select-input">
-                      <option value="">Select Age Group</option>
-                      <option value="0-2">👶 Ages 0-2 (tiny - Explorers)</option>
-                      <option value="3-5">👧 Ages 3-5 (Imagination Builders)</option>
-                      <option value="6-7">🧒 Ages 6-7 (Early Adventurers)</option>
-                      <option value="8-10">👦 Ages 8-10 (Creative Storyteller)</option>
-                      <option value="11-12">👦🏽 Ages 11-12 (Young Authors)</option>
-                    </select>
-                  </div>
+                  <AdvancedSelect
+                    bind:selectedOption={ageGroup}
+                    options={ageGroupOptions}
+                    placeholder="Select Age Group"
+                    id="age-group-select"
+                  />
                 </div>
                 <div class="form_03">
                   <div class="your-relationship">
                     <span class="yourrelationship_span">Your relationship*</span>
                   </div>
-                  <div class="select-field">
-                    <select bind:value={relationship} class="select-input">
-                      <option value="">Select your Relationship</option>
-                      <option value="Parent">Parent</option>
-                      <option value="Guardian">Guardian</option>
-                      <option value="Grandparent">Grandparent</option>
-                      <option value="Aunt/Uncle">Aunt/Uncle</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
+                  <AdvancedSelect
+                    bind:selectedOption={relationship}
+                    options={relationshipOptions}
+                    placeholder="Select your Relationship"
+                    id="relationship-select"
+                  />
                 </div>
               </div>
               <div class="frame-1410103991">
                 <div class="button-group">
                   <button
                     class="button_02"
+                    class:button-disabled={uploading}
                     on:click={handleUpdateChild}
                     type="button"
+                    disabled={uploading}
                   >
-                    <span class="continuetostorycreation_span">Save Changes</span>
+                    <span class="continuetostorycreation_span">
+                      {uploading ? 'Saving...' : 'Save Changes'}
+                    </span>
                   </button>
                   <button
                     class="button_cancel"
                     on:click={() => goto('/dashboard')}
                     type="button"
+                    disabled={uploading}
                   >
                     <span class="cancel_span">Cancel</span>
                   </button>
@@ -729,15 +920,13 @@
       height: 120px;
     }
 
-    .input-field,
-    .select-field {
+    .input-field {
       height: 48px;
       padding-left: 12px;
       padding-right: 12px;
     }
 
-    .text-input,
-    .select-input {
+    .text-input {
       font-size: 14px;
       line-height: 19.6px;
     }
@@ -844,8 +1033,7 @@
       height: 100px;
     }
 
-    .input-field,
-    .select-field {
+    .input-field {
       height: 44px;
       padding-left: 10px;
       padding-right: 10px;
@@ -1180,7 +1368,7 @@
 
   .image {
     align-self: stretch;
-    height: 133px;
+    height: 200px;
     position: relative;
     background: #f8fafb;
     overflow: hidden;
@@ -1241,24 +1429,6 @@
     display: inline-flex;
   }
 
-  .select-field {
-    align-self: stretch;
-    height: 50px;
-    padding-left: 10px;
-    padding-right: 10px;
-    padding-top: 4px;
-    padding-bottom: 4px;
-    background: white;
-    overflow: hidden;
-    border-radius: 12px;
-    outline: 1px #dcdcdc solid;
-    outline-offset: -1px;
-    justify-content: space-between;
-    align-items: center;
-    display: inline-flex;
-    position: relative;
-  }
-
   .text-input {
     width: 100%;
     border: none;
@@ -1273,25 +1443,6 @@
 
   .text-input::placeholder {
     color: #727272;
-  }
-
-  .select-input {
-    width: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: #141414;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 400;
-    line-height: 22.4px;
-    appearance: none;
-    cursor: pointer;
-  }
-
-  .select-input option {
-    color: #141414;
-    background: white;
   }
 
   .button_02 {
@@ -1313,6 +1464,18 @@
 
   .button_02:hover {
     background: #3b7ce6;
+  }
+
+  .button_02:disabled,
+  .button-disabled {
+    background: #a0c4ff;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .button_02:disabled:hover,
+  .button-disabled:hover {
+    background: #a0c4ff;
   }
 
   .button-group {
@@ -1348,6 +1511,15 @@
     background: #F8FAFB;
   }
 
+  .button_cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .button_cancel:disabled:hover {
+    background: white;
+  }
+
   .cancel_span {
     color: black;
     font-size: 18px;
@@ -1369,7 +1541,7 @@
   .preview-image {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     border-radius: 10px;
   }
 
@@ -1385,7 +1557,7 @@
     justify-content: center;
     opacity: 0;
     transition: opacity 0.2s;
-    border-radius: 10px;
+    border-radius: 15px;
   }
 
   .image-preview:hover .image-overlay {
@@ -1407,5 +1579,50 @@
 
   .change-image-btn:hover {
     background: #3b7ce6;
+  }
+
+  .upload-progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #438bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .upload-text {
+    color: #438bff;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+  }
+
+  .upload-error {
+    padding: 8px 12px;
+    background: #ffebee;
+    border-left: 4px solid #f44336;
+    border-radius: 4px;
+    margin-top: 8px;
+  }
+
+  .error-text {
+    color: #c62828;
+    font-size: 13px;
+    font-family: Nunito;
+    font-weight: 500;
   }
 </style>

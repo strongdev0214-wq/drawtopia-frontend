@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
   import Navbar from "../../components/Navbar.svelte";
+  import AccountDropdown from "../../components/AccountDropdown.svelte";
   import eye from "../../assets/WhiteEye.svg";
   import arrowleft from "../../assets/ArrowLeft.svg";
   import purplecheck from "../../assets/purple-check.svg";
@@ -12,22 +13,40 @@
 
   import { goto } from '$app/navigation';
 
+  // Track selected purchase option
+  let selectedOption: 'digital' | 'physical' | 'bundle' | null = 'physical'; // Default to physical
+
   const handleBack = () => {
     // Navigate back in browser history
     if (typeof window !== 'undefined') {
       window.history.back();
     }
+    
+    goto('/dashboard');
   };
 
   const handleContinue = () => {
     if (typeof window !== 'undefined') {
-      goto('/additional');
+      goto('/chart');
+    }
+  };
+
+  const handleSelectOption = (option: 'digital' | 'physical' | 'bundle') => {
+    selectedOption = option;
+  };
+
+  const handleKeydownOption = (event: KeyboardEvent, option: 'digital' | 'physical' | 'bundle') => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSelectOption(option);
     }
   };
 </script>
 
 <div class="purchase-option-screen-preview">
-  <Navbar />
+  <Navbar>
+    <AccountDropdown slot="profile" />
+  </Navbar>
   
   <!-- Mobile Back Button -->
   <div class="mobile-back-button">
@@ -77,7 +96,13 @@
         </div>
         <div class="frame-1410103961">
           <div class="frame-1410103909">
-            <div class="select">
+            <div 
+              class="select {selectedOption === 'digital' ? 'selected-card' : ''}" 
+              on:click={() => handleSelectOption('digital')}
+              on:keydown={(e) => handleKeydownOption(e, 'digital')}
+              role="button"
+              tabindex="0"
+            >
               <div class="frame-1410103837">
                 <img src={digitalBookImage} alt="digitalBookImage" style="width: 100%;">
               </div>
@@ -105,8 +130,17 @@
                   </div>
                 </div>
               </div>
+              {#if selectedOption === 'digital'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
             </div>
-            <div class="select_01">
+            <div 
+              class="select_01 {selectedOption === 'physical' ? 'selected-card' : ''}"
+              on:click={() => handleSelectOption('physical')}
+              on:keydown={(e) => handleKeydownOption(e, 'physical')}
+              role="button"
+              tabindex="0"
+            >
               <div class="frame-1410103837_01">
                 <img src={physicalBookImg} alt="physicalBookImg" style="width: 100%;">
               </div>
@@ -134,8 +168,17 @@
                   </div>
                 </div>
               </div>
+              {#if selectedOption === 'physical'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
             </div>
-            <div class="select_02">
+            <div 
+              class="select_02 {selectedOption === 'bundle' ? 'selected-card' : ''}"
+              on:click={() => handleSelectOption('bundle')}
+              on:keydown={(e) => handleKeydownOption(e, 'bundle')}
+              role="button"
+              tabindex="0"
+            >
               <div class="frame-1410103837_02">
                 <img src={bundleBookImage} alt="bundleBookImage" style="width: 100%;">
               </div>
@@ -163,6 +206,9 @@
                   </div>
                 </div>
               </div>
+              {#if selectedOption === 'bundle'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
             </div>
           </div>
           <div class="frame-1410103912">
@@ -640,6 +686,19 @@
     align-items: center;
     gap: 10px;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .button_01:hover {
+    background: #f8f8f8;
+    outline: 2px #438bff solid;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .button_01:active {
+    transform: translateY(0px);
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .frame-1410103908_01 {
@@ -675,6 +734,18 @@
     align-items: center;
     gap: 10px;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .button_02:hover {
+    background: #d0f7ff;
+    box-shadow: 0px 6px 0px #3578e5;
+  }
+
+  .button_02:active {
+    box-shadow: 0px 2px 0px #2d6bd1;
+    transform: translateY(2px);
   }
 
   .frame-1410103908_02 {
@@ -709,6 +780,20 @@
     align-items: center;
     gap: 10px;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+  }
+
+  .button_03:hover {
+    background: #f8f8f8;
+    outline: 2px #438bff solid;
+    box-shadow: 0px 6px 12px rgba(67, 139, 255, 0.3);
+  }
+
+  .button_03:active {
+    transform: translateY(0px);
+    box-shadow: 0px 2px 4px rgba(98.89, 98.89, 98.89, 0.25);
   }
 
   .frame-1410103912 {
@@ -733,6 +818,19 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .button_05:hover {
+    background: #3578e5;
+    box-shadow: 0px 8px 16px rgba(67, 139, 255, 0.4);
+  }
+
+  .button_05:active {
+    background: #2d6bd1;
+    transform: translateY(0px);
+    box-shadow: 0px 4px 8px rgba(67, 139, 255, 0.3);
   }
 
   .button_05::after {
@@ -871,6 +969,19 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .button:hover {
+    background: #3578e5;
+    box-shadow: 0px 8px 16px rgba(67, 139, 255, 0.4);
+  }
+
+  .button:active {
+    background: #2d6bd1;
+    transform: translateY(0px);
+    box-shadow: 0px 4px 8px rgba(67, 139, 255, 0.3);
   }
 
   .button::after {
@@ -891,8 +1002,6 @@
     background: #e9e9e9;
     overflow: hidden;
     border-radius: 16px;
-    outline: 1px #173db6 solid;
-    outline-offset: -1px;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
@@ -914,6 +1023,20 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+  }
+
+  .button_04:hover {
+    background: #f8f8f8;
+    outline: 2px #438bff solid;
+    box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .button_04:active {
+    transform: translateY(0px);
+    box-shadow: 0px 2px 4px rgba(98.89, 98.89, 98.89, 0.25);
   }
 
 
@@ -977,21 +1100,46 @@
     gap: 12px;
     display: inline-flex;
     background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .select:hover {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 4px 12px rgba(67, 139, 255, 0.15);
+  }
+
+  .select.selected-card {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 1px 8px #438bff;
   }
 
   .select_01 {
     flex: 1 1 0;
     padding: 12px;
-    box-shadow: 0px 1px 8px #438bff;
     border-radius: 16px;
-    outline: 2px #173db6 solid;
-    outline-offset: -2px;
+    outline: 1px #dcdcdc solid;
+    outline-offset: -1px;
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
     gap: 12px;
     display: inline-flex;
     background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .select_01:hover {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 4px 12px rgba(67, 139, 255, 0.25);
+  }
+
+  .select_01.selected-card {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 1px 8px #438bff;
   }
 
   .select_02 {
@@ -1006,6 +1154,19 @@
     gap: 12px;
     display: inline-flex;
     background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .select_02:hover {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 4px 12px rgba(67, 139, 255, 0.15);
+  }
+
+  .select_02.selected-card {
+    outline: 2px #438bff solid;
+    box-shadow: 0px 1px 8px #438bff;
   }
 
   .frame-1410103904 {
@@ -1111,6 +1272,15 @@
     font-family: Quicksand;
     font-weight: 600;
     line-height: 22.4px;
+  }
+
+  .purple-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    z-index: 10;
   }
 
   /* Mobile responsive styles */

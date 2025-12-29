@@ -195,7 +195,7 @@
         </div>
         <div class="frame-1410103860">
             <div class="frame-1410103870">
-                <div class="button">
+                <div class="button" on:click={() => goto('/create-character/7')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto('/create-character/7')}>
                     <div class="arrowleft">
                         <img src={ArrowLeft} alt="Arrow Left" class="img-arrowleft" />
                     </div>
@@ -1060,6 +1060,14 @@
         align-items: center;
         gap: 10px;
         display: flex;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .button:hover {
+        background: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0px 6px 8px rgba(98.89, 98.89, 98.89, 0.25);
     }
 
     .progress-bar_01 {

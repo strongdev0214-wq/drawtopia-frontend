@@ -23,9 +23,17 @@ export interface DatabaseResult {
 /**
  * Insert a single child profile into the database
  * @param childProfile - The child profile data to insert
+ * @param sendConsentEmail - Whether to send parental consent email (default: false)
+ * @param parentEmail - Parent email for consent verification
+ * @param parentName - Parent name for consent email
  * @returns Promise with operation result
  */
-export async function insertChildProfile(childProfile: ChildProfile): Promise<DatabaseResult> {
+export async function insertChildProfile(
+  childProfile: ChildProfile,
+  sendConsentEmail: boolean = false,
+  parentEmail?: string,
+  parentName?: string
+): Promise<DatabaseResult> {
   try {
     const { data, error } = await supabase
       .from('child_profiles')
@@ -45,6 +53,28 @@ export async function insertChildProfile(childProfile: ChildProfile): Promise<Da
         success: false,
         error: error.message
       };
+    }
+
+    // Queue parental consent email if requested
+    if (sendConsentEmail && parentEmail && parentName) {
+      try {
+        const { queueParentalConsentEmail } = await import('../emails');
+        const emailResult = await queueParentalConsentEmail(
+          parentEmail,
+          parentName,
+          childProfile.first_name
+        );
+        
+        if (emailResult.success) {
+          console.log('✅ Parental consent email queued');
+        } else {
+          console.warn('⚠️ Failed to queue parental consent email:', emailResult.error);
+          // Don't fail the profile creation if email fails
+        }
+      } catch (emailError) {
+        console.error('Error queueing parental consent email:', emailError);
+        // Don't fail the profile creation if email fails
+      }
     }
 
     return {
@@ -147,6 +177,59 @@ export async function getChildProfiles(parentId: string): Promise<DatabaseResult
 }
 
 /**
+ * Update a child profile by ID
+ * @param profileId - The child profile ID to update
+ * @param childProfile - The updated child profile data
+ * @param parentId - The parent's user ID (for security)
+ * @returns Promise with operation result
+ */
+export async function updateChildProfile(profileId: number, childProfile: Partial<ChildProfile>, parentId: string): Promise<DatabaseResult> {
+  try {
+    const updateData: any = {};
+    
+    // Only include fields that are provided
+    if (childProfile.first_name !== undefined) updateData.first_name = childProfile.first_name;
+    if (childProfile.age_group !== undefined) updateData.age_group = childProfile.age_group;
+    if (childProfile.relationship !== undefined) updateData.relationship = childProfile.relationship;
+    if (childProfile.avatar_url !== undefined) updateData.avatar_url = childProfile.avatar_url;
+
+    const { data, error } = await supabase
+      .from('child_profiles')
+      .update(updateData)
+      .eq('id', profileId)
+      .eq('parent_id', parentId)
+      .select();
+
+    if (error) {
+      console.error('Error updating child profile:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        success: false,
+        error: 'Child profile not found or you do not have permission to update it'
+      };
+    }
+
+    return {
+      success: true,
+      data: data[0]
+    };
+
+  } catch (error) {
+    console.error('Unexpected error updating child profile:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating the child profile'
+    };
+  }
+}
+
+/**
  * Delete a child profile by ID
  * @param profileId - The child profile ID to delete
  * @param parentId - The parent's user ID (for security)
@@ -191,7 +274,7 @@ export async function deleteChildProfile(profileId: number, parentId: string): P
 export async function getChildrenForParent(parentId: string): Promise<DatabaseResult> {
   try {
     // Determine backend URL
-    let backendUrl = 'http://localhost:8000'; // https://drawtopia-backend.vercel.app
+    let backendUrl = 'https://drawtopia-backend.vercel.app'; // http://localhost:8000
     
     // Call Python backend API
     const endpoint = `${backendUrl}/api/users/children?parent_id=${encodeURIComponent(parentId)}`;

@@ -49,7 +49,7 @@
   let rememberMe = false;
   let isLoading = false;
   let errors: { [key: string]: string } = {};
-  let loginMethod: "phone" | "email" = "phone";
+  let loginMethod: "phone" | "email" = "email";
   // let selectedCountry = { name: 'United States', code: '+1', flag: '🇺🇸' };
   let showCountryDropdown = false;
   const countries = [

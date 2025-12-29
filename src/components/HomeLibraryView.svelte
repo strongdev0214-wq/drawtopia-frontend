@@ -14,6 +14,7 @@
   
   export let handleAddChildren: () => void;
   export let handleCharacterPreview: (event: CustomEvent) => void;
+  export let handleNewStory: (event: CustomEvent) => void;
 
   let libraryView: "all" | "characters" | "children" = "all";
   const setLibraryView = (v: "all" | "characters" | "children") =>
@@ -102,48 +103,61 @@
   });
 
   // Track current user ID for reactive statements
-  let currentUserId: string | null = null;
+  let currentUserId: string = "";
+  let charactersFetched: boolean = false; // Track if we've already attempted to fetch
 
   // Watch for libraryView changes and fetch characters when needed
-  $: if (libraryView === "characters") {
-    if (characters.length === 0 && !loadingCharacters) {
-      loadingCharacters = true;
-      charactersError = "";
-      getAllCharacters().then((result) => {
-        if (result.success && result.data) {
-          characters = result.data;
-        } else {
-          charactersError = result.error || "Failed to fetch characters";
-          characters = [];
-        }
-        loadingCharacters = false;
-      }).catch((err) => {
-        charactersError = err instanceof Error ? err.message : 'Failed to fetch characters';
+  // Only fetch when: view is "characters", haven't fetched yet, not currently loading, and have valid user ID
+  $: if (libraryView === "characters" && !charactersFetched && !loadingCharacters && currentUserId) {
+    loadingCharacters = true;
+    charactersFetched = true; // Mark as attempted to prevent re-fetching
+    charactersError = "";
+    getAllCharacters(currentUserId).then((result) => {
+      if (result.success && result.data) {
+        characters = result.data;
+      } else {
+        charactersError = result.error || "Failed to fetch characters";
         characters = [];
-        loadingCharacters = false;
-      });
-    }
+      }
+      loadingCharacters = false;
+    }).catch((err) => {
+      charactersError = err instanceof Error ? err.message : 'Failed to fetch characters';
+      characters = [];
+      loadingCharacters = false;
+    });
   }
 
+  // Reset charactersFetched when switching away from characters view (allows refresh on return)
+  $: if (libraryView !== "characters") {
+    charactersFetched = false;
+  }
+
+  // Track if children have been fetched to prevent infinite loops
+  let childrenFetched: boolean = false;
+
   // Watch for libraryView changes and fetch children when needed
-  $: if (libraryView === "children" && currentUserId) {
-    if (childProfiles.length === 0 && !loading) {
-      loading = true;
-      error = "";
-      getChildrenForParent(currentUserId).then((result) => {
-        if (result.success && result.data) {
-          childProfiles = result.data;
-        } else {
-          error = result.error || "Failed to fetch children";
-          childProfiles = [];
-        }
-        loading = false;
-      }).catch((err) => {
-        error = err instanceof Error ? err.message : 'Failed to fetch children';
+  $: if (libraryView === "children" && !childrenFetched && !loading && currentUserId) {
+    loading = true;
+    childrenFetched = true; // Mark as attempted to prevent re-fetching
+    error = "";
+    getChildrenForParent(currentUserId).then((result) => {
+      if (result.success && result.data) {
+        childProfiles = result.data;
+      } else {
+        error = result.error || "Failed to fetch children";
         childProfiles = [];
-        loading = false;
-      });
-    }
+      }
+      loading = false;
+    }).catch((err) => {
+      error = err instanceof Error ? err.message : 'Failed to fetch children';
+      childProfiles = [];
+      loading = false;
+    });
+  }
+
+  // Reset childrenFetched when switching away from children view
+  $: if (libraryView !== "children") {
+    childrenFetched = false;
   }
 
   onMount(() => {
@@ -507,7 +521,17 @@
           <div class="empty-message">No children found</div>
         {:else}
           {#each childProfiles as child, index (child.id || child.uid || `child-${index}-${child.first_name || ''}`)}
-            <ChildCard item={child} />
+            <!-- <ChildCard item={child} /> -->
+            <ChildCard 
+            item={child}
+            on:newStory={handleNewStory}
+            on:editChild={(event) => {
+              const childItem = event.detail.item || child;
+              goto(
+                `/create-child-profile/edit?id=${childItem.id || ""}&name=${encodeURIComponent(childItem.name || childItem.first_name || "")}`,
+              );
+            }}
+          />
           {/each}
         {/if}
       {/if}

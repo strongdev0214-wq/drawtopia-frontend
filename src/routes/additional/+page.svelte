@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import Navbar from "../../components/Navbar.svelte";
   import AccountDropdown from "../../components/AccountDropdown.svelte";
   import { goto } from '$app/navigation';
@@ -9,16 +9,28 @@
   import splendidImage from "../../assets/splendid-book.png";
   import stickerImage from "../../assets/sticker-pack.png";
 
+  // Track selected item (single selection)
+  let selectedItem: 'giant' | 'splendid' | 'sticker' = 'splendid'; // Default to splendid
+
   const handleBack = () => {
-    // Navigate back in browser history
-    if (typeof window !== 'undefined') {
-      window.history.back();
-    }
+    
+    goto('/purchase');
   };
 
   const handleContinue = () => {
     if (typeof window !== 'undefined') {
       goto('/chart');
+    }
+  };
+
+  const handleSelectItem = (item: 'giant' | 'splendid' | 'sticker') => {
+    selectedItem = item;
+  };
+
+  const handleKeydownItem = (event: KeyboardEvent, item: 'giant' | 'splendid' | 'sticker') => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSelectItem(item);
     }
   };
 </script>
@@ -46,7 +58,13 @@
           <div><span class="addoneormoreofthesedelightfulextrastoyourgift_span">Add one or more of these delightful extras to your gift</span></div>
       </div>
       <div class="frame-1410103954">
-          <div class="frame-1410103903">
+          <div 
+            class="frame-1410103903 {selectedItem === 'giant' ? 'selected-card' : ''}"
+            on:click={() => handleSelectItem('giant')}
+            on:keydown={(e) => handleKeydownItem(e, 'giant')}
+            role="button"
+            tabindex="0"
+          >
               <div class="frame-1410103837">
                 <img src={giantImage} alt="giantImage" style="width: 100%;">
               </div>
@@ -59,8 +77,17 @@
                       <div class="look-inside"><span class="lookinside_span">Look Inside</span></div>
                   </div>
               </div>
+              {#if selectedItem === 'giant'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
           </div>
-          <div class="frame-1410103904">
+          <div 
+            class="frame-1410103904 {selectedItem === 'splendid' ? 'selected-card' : ''}"
+            on:click={() => handleSelectItem('splendid')}
+            on:keydown={(e) => handleKeydownItem(e, 'splendid')}
+            role="button"
+            tabindex="0"
+          >
               <div class="frame-1410103837_01">
                 <img src={splendidImage} alt="the splendid book" style="width: 100%; object-fit: cover
               "/>
@@ -74,8 +101,17 @@
                       <div class="look-inside_01"><span class="lookinside_01_span">Look Inside</span></div>
                   </div>
               </div>
+              {#if selectedItem === 'splendid'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
           </div>
-          <div class="frame-1410103905">
+          <div 
+            class="frame-1410103905 {selectedItem === 'sticker' ? 'selected-card' : ''}"
+            on:click={() => handleSelectItem('sticker')}
+            on:keydown={(e) => handleKeydownItem(e, 'sticker')}
+            role="button"
+            tabindex="0"
+          >
               <div class="frame-1410103837_02">
                 <img src={stickerImage} alt="stickerImage" style="width: 100%;">
               </div>
@@ -88,10 +124,19 @@
                       <div class="look-inside_02"><span class="lookinside_02_span">Look Inside</span></div>
                   </div>
               </div>
+              {#if selectedItem === 'sticker'}
+                <img src={purplecheck} alt="selected" class="purple-check" />
+              {/if}
           </div>
       </div>
       <div class="frame-1410103959">
-          <div class="button_03">
+          <div 
+            class="button_03"
+            on:click={handleBack}
+            on:keydown={(e) => e.key === 'Enter' && handleBack()}
+            role="button"
+            tabindex="0"
+          >
               <div class="arrowleft">
                   <img src={arrowleft} alt="arrow left" />
               </div>
@@ -360,6 +405,20 @@
   align-items: center;
   gap: 10px;
   display: inline-flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.button:hover {
+  background: #f8f8f8;
+  outline: 2px rgb(105, 18, 197) solid;
+  box-shadow: 0px 6px 12px rgba(105, 18, 197, 0.15);
+}
+
+.button:active {
+  transform: translateY(0px);
+  box-shadow: 0px 2px 4px rgba(98.89, 98.89, 98.89, 0.25);
 }
 
 .heading_03 {
@@ -388,6 +447,19 @@
   align-items: center;
   gap: 10px;
   display: inline-flex;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.button_01:hover {
+  background: #ebe4ff;
+  outline: 2px #6912C5 solid;
+  box-shadow: 0px 6px 12px rgba(105, 18, 197, 0.2);
+}
+
+.button_01:active {
+  transform: translateY(0px);
+  box-shadow: 0px 2px 4px rgba(105, 18, 197, 0.15);
 }
 
 .heading_04 {
@@ -416,6 +488,20 @@
   align-items: center;
   gap: 10px;
   display: inline-flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.button_02:hover {
+  background: #f8f8f8;
+  outline: 2px rgb(105, 18, 197) solid;
+  box-shadow: 0px 6px 12px rgba(105, 18, 197, 0.15);
+}
+
+.button_02:active {
+  transform: translateY(0px);
+  box-shadow: 0px 2px 4px rgba(98.89, 98.89, 98.89, 0.25);
 }
 
 .button_04 {
@@ -430,6 +516,19 @@
   align-items: center;
   gap: 10px;
   display: flex;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.button_04:hover {
+  background: #3578e5;
+  box-shadow: 0px 8px 16px rgba(67, 139, 255, 0.4);
+}
+
+.button_04:active {
+  background: #2d6bd1;
+  transform: translateY(0px);
+  box-shadow: 0px 4px 8px rgba(67, 139, 255, 0.3);
 }
 
 .frame-1410103820 {
@@ -458,8 +557,6 @@
   background: #E9E9E9;
   overflow: hidden;
   border-radius: 16px;
-  outline: 1px #6912C5 solid;
-  outline-offset: -1px;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
@@ -531,46 +628,107 @@
   padding-bottom: 16px;
   box-shadow: 0px 4px 4px rgba(98.89, 98.89, 98.89, 0.25);
   border-radius: 20px;
-  outline: 1px #DCDCDC solid;
+  outline: 2px #6912C5 solid;
   outline-offset: -1px;
   justify-content: center;
   align-items: center;
   gap: 10px;
   display: flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.button_03:hover {
+  background: #f8f8f8;
+  outline: 2px #871FFF solid;
+  box-shadow: 0px 6px 12px rgba(105, 18, 197, 0.2);
+}
+
+.button_03:active {
+  transform: translateY(0px);
+  box-shadow: 0px 2px 4px rgba(105, 18, 197, 0.25);
 }
 
 .frame-1410103903 {
   flex: 1 1 0;
   padding: 12px;
+  border-radius: 16px;
+  outline: 1px #dcdcdc solid;
+  outline-offset: -1px;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
   gap: 8px;
   display: inline-flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.frame-1410103903:hover {
+  outline: 2px rgb(105, 18, 197) solid;
+  box-shadow: 0px 4px 12px rgba(105, 18, 197, 0.15);
+}
+
+.frame-1410103903.selected-card {
+  outline: 3px #6912C5 solid;
+  box-shadow: 0px 1px 8px rgba(105, 18, 197, 0.3);
 }
 
 .frame-1410103904 {
   flex: 1 1 0;
   padding: 12px;
-  box-shadow: 0px 1px 8px #871FFF;
-  border-radius: 12px;
-  outline: 2px #6912C5 solid;
-  outline-offset: -2px;
+  border-radius: 16px;
+  outline: 1px #dcdcdc solid;
+  outline-offset: -1px;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
   gap: 8px;
   display: inline-flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.frame-1410103904:hover {
+  outline: 2px #6912C5 solid;
+  box-shadow: 0px 4px 12px rgba(105, 18, 197, 0.15);
+}
+
+.frame-1410103904.selected-card {
+  outline: 3px #6912C5 solid;
+  box-shadow: 0px 1px 8px #871FFF;
 }
 
 .frame-1410103905 {
   flex: 1 1 0;
   padding: 12px;
+  border-radius: 16px;
+  outline: 1px #dcdcdc solid;
+  outline-offset: -1px;
   flex-direction: column;
   justify-content: flex-start;
   align-items: flex-start;
   gap: 8px;
   display: inline-flex;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.frame-1410103905:hover {
+  outline: 2px rgb(105, 18, 197) solid;
+  box-shadow: 0px 4px 12px rgba(105, 18, 197, 0.15);
+}
+
+.frame-1410103905.selected-card {
+  outline: 3px rgb(105, 18, 197) solid;
+  box-shadow: 0px 1px 8px rgba(105, 18, 197, 0.3);
 }
 
 .frame-1410103959 {
@@ -647,6 +805,15 @@
   font-family: Quicksand;
   font-weight: 600;
   line-height: 22.4px;
+}
+
+.purple-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  z-index: 10;
 }
 
 /* Mobile responsive styles */

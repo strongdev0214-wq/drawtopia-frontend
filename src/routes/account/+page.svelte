@@ -28,6 +28,10 @@
     let userAvatarUrl = "https://placehold.co/40x40";
     let userProfilePicture = "https://placehold.co/120x120";
     let subscriptionPlan = "Free Plan";
+    let subscriptionStatus = "free";
+    let planType = "";
+    let currentPeriodEnd: Date | null = null;
+    let isSubscriptionActive = false;
     let lastFetchedUserId: string | null = null;
     
     // Email preferences state
@@ -88,9 +92,6 @@
                         : result.profile;
                     
                     if (profile) {
-                        // Get subscription status from users table
-                        subscriptionPlan = formatSubscriptionStatus(profile.subscription_status);
-                        
                         // Get avatar URL from users table or user metadata
                         if (authState.user.user_metadata?.avatar_url) {
                             userAvatarUrl = authState.user.user_metadata.avatar_url;
@@ -105,10 +106,77 @@
                         }
                     }
                 }
+                
+                // Fetch subscription details - this handles all subscription logic
+                await fetchSubscriptionDetails(authState.user.id);
             } catch (error) {
                 console.error("Error fetching user profile:", error);
             }
         }
+    }
+    
+    // Fetch subscription details from subscriptions table and users table
+    async function fetchSubscriptionDetails(userId: string) {
+        try {
+            const { supabase } = await import("../../lib/supabase");
+            
+            // First, get the user's subscription_status from users table
+            const { data: userData, error: userError } = await supabase
+                .from("users")
+                .select("subscription_status")
+                .eq("id", userId)
+                .single();
+            
+            // Then, check if there's an active subscription in subscriptions table
+            const { data: subscriptionData, error: subscriptionError } = await supabase
+                .from("subscriptions")
+                .select("*")
+                .eq("user_id", userId)
+                .eq("status", "active")
+                .single();
+
+            console.log('[fetchSubscriptionDetails] subscriptionData:', subscriptionData);
+            
+            // Logic: 
+            // - If subscriptions.status = 'active' AND users.subscription_status = 'premium' → Premium Plan
+            // - Otherwise → Free Plan
+            const hasActiveSubscription = subscriptionData && !subscriptionError;
+            const userIsPremium = userData?.subscription_status === "premium";
+            
+            if (hasActiveSubscription && userIsPremium) {
+                // Premium Plan - both conditions met
+                isSubscriptionActive = true;
+                subscriptionStatus = "premium";
+                subscriptionPlan = "Premium Plan";
+                planType = subscriptionData.plan_type || "monthly";
+                if (subscriptionData.current_period_end) {
+                    currentPeriodEnd = new Date(subscriptionData.current_period_end);
+                }
+            } else {
+                // Free Plan - subscription not active
+                isSubscriptionActive = false;
+                subscriptionStatus = "free";
+                subscriptionPlan = "Free Plan";
+                planType = "";
+                currentPeriodEnd = null;
+            }
+        } catch (error) {
+            console.error("Error fetching subscription details:", error);
+            // Default to Free Plan on error
+            isSubscriptionActive = false;
+            subscriptionStatus = "free";
+            subscriptionPlan = "Free Plan";
+        }
+    }
+    
+    // Format date for display
+    function formatDate(date: Date | null): string {
+        if (!date) return "";
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
     }
 
     // Reactive statement to update user data when auth state changes
@@ -232,6 +300,49 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Subscription Plan Section -->
+        <div class="frame-1410103889">
+            <div class="frame-1410103917_01">
+                <div class="frame-1410103916_02">
+                    <div class="frame-1410103915_02">
+                        <div><span class="subscriptionplan_span">Subscription Plan</span></div>
+                    </div>
+                </div>
+                <div class="form_subscription">
+                    <div class="subscription-info">
+                        <div class="subscription-plan-badge" class:premium={isSubscriptionActive} class:free={!isSubscriptionActive}>
+                            <span class="plan-name">{subscriptionPlan}</span>
+                        </div>
+                        {#if isSubscriptionActive}
+                            <div class="subscription-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Plan Type:</span>
+                                    <span class="detail-value">{planType === 'yearly' ? 'Yearly' : 'Monthly'}</span>
+                                </div>
+                                {#if currentPeriodEnd}
+                                    <div class="detail-row">
+                                        <span class="detail-label">Renews on:</span>
+                                        <span class="detail-value">{formatDate(currentPeriodEnd)}</span>
+                                    </div>
+                                {/if}
+                            </div>
+                            <button class="manage-subscription-button" on:click={() => goto('/account/edit')}>
+                                <span>Manage Subscription</span>
+                            </button>
+                        {:else}
+                            <div class="subscription-cta">
+                                <p class="cta-text">Unlock unlimited stories and premium features</p>
+                                <button class="upgrade-button" on:click={() => goto('/pricing')}>
+                                    <span>Upgrade to Premium</span>
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div class="frame-1410103889">
             <div class="frame-1410103917_01">
                 <div class="frame-1410103916_02">
@@ -1019,6 +1130,144 @@
 .cancel-button:hover {
     background: #F5F5F5;
     border-color: #B0B0B0;
+}
+
+/* Subscription Plan Section Styles */
+.subscriptionplan_span {
+    color: black;
+    font-size: 20px;
+    font-family: Quicksand;
+    font-weight: 600;
+    line-height: 24px;
+    word-wrap: break-word;
+}
+
+.form_subscription {
+    align-self: stretch;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 4px;
+    display: inline-flex;
+}
+
+.subscription-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.subscription-plan-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    border-radius: 20px;
+    width: fit-content;
+}
+
+.subscription-plan-badge.premium {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    box-shadow: 0px 2px 8px rgba(255, 165, 0, 0.3);
+}
+
+.subscription-plan-badge.free {
+    background: #E8E8E8;
+}
+
+.plan-name {
+    font-size: 16px;
+    font-family: Quicksand;
+    font-weight: 600;
+    color: #333;
+}
+
+.subscription-plan-badge.premium .plan-name {
+    color: #5C4800;
+}
+
+.subscription-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #F9F9F9;
+    border-radius: 12px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-label {
+    color: #727272;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 400;
+}
+
+.detail-value {
+    color: #333;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 600;
+}
+
+.manage-subscription-button {
+    padding: 12px 24px;
+    background: white;
+    border: 1px solid #DCDCDC;
+    border-radius: 12px;
+    color: #438BFF;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: fit-content;
+}
+
+.manage-subscription-button:hover {
+    background: #F5F5F5;
+    border-color: #438BFF;
+}
+
+.subscription-cta {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cta-text {
+    color: #727272;
+    font-size: 14px;
+    font-family: DM Sans;
+    font-weight: 400;
+    margin: 0;
+}
+
+.upgrade-button {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #438BFF 0%, #6C63FF 100%);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: fit-content;
+    box-shadow: 0px 4px 12px rgba(67, 139, 255, 0.3);
+}
+
+.upgrade-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0px 6px 16px rgba(67, 139, 255, 0.4);
 }
 
 /* Mobile Responsive Styles */

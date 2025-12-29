@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
+  import { page } from "$app/stores";
   import share from "../../../assets/Share.svg";
   import DotsThreeOutline from "../../../assets/DotsThreeOutline.svg";
   import CornersOut from "../../../assets/CornersOut.svg";
@@ -20,6 +21,7 @@
   import PreviewLockModal from "../../../components/PreviewLockModal.svelte";
   import { user } from "../../../lib/stores/auth";
   import { getUserProfile } from "../../../lib/auth";
+  import { getStoryById } from "../../../lib/database/stories";
 
   let showStoryInfoModal = false;
   let showShareStoryModal = false;
@@ -36,6 +38,8 @@
   let readingTime = "0:00";
   let audioListened = "0 min";
   let isFreePlan = true; // Default to free plan for safety
+  let isLoading = true;
+  let loadError = "";
 
   // Reactive statement to check subscription status when user changes
   $: if (browser && $user) {
@@ -78,80 +82,117 @@
     }
   };
 
-  // Load story scenes and text from session storage
-  onMount(() => {
+  // Load story data from database
+  onMount(async () => {
     if (browser) {
       // Check subscription status first
       checkSubscriptionStatus();
       
-      // Load story title
-      const storedTitle = sessionStorage.getItem('storyTitle') || 
-                         sessionStorage.getItem('adventureTitle') ||
-                         sessionStorage.getItem('story_title');
-      if (storedTitle) {
-        storyTitle = storedTitle;
+      // Get story ID from URL query params
+      const storyId = $page.url.searchParams.get('storyId');
+      
+      if (!storyId) {
+        loadError = "No story ID provided";
+        isLoading = false;
+        console.error("No story ID found in URL");
+        return;
       }
       
-      // First, try to load story pages (which may contain scenes)
-      const storedStoryPages = sessionStorage.getItem('storyPages');
-      if (storedStoryPages) {
-        try {
-          const parsedPages = JSON.parse(storedStoryPages);
-          storyPages = parsedPages;
-          
-          // Extract scenes from storyPages if they have scene property
-          const scenesFromPages = parsedPages
-            .map((page: any) => page.scene || page.imageUrl || page.image)
-            .filter((url: string | undefined): url is string => !!url);
-          
-          if (scenesFromPages.length > 0) {
-            storyScenes = scenesFromPages.map((url: string) => url.split("?")[0]);
-            currentSceneIndex = 0;
-            pagesRead = storyScenes.length;
-          }
-        } catch (error) {
-          console.error('Error parsing story pages from session storage:', error);
+      try {
+        // Fetch story from database
+        const result = await getStoryById(storyId);
+        
+        if (!result.success || !result.data) {
+          loadError = result.error || "Failed to load story";
+          isLoading = false;
+          console.error("Failed to fetch story:", result.error);
+          return;
         }
-      }
-      
-      // If scenes weren't found in storyPages, try individual scene keys
-      if (storyScenes.length === 0) {
+        
+        const story = result.data;
+        console.log("Loaded story:", story);
+        
+        // Set story title
+        storyTitle = story.story_title || story.character_name || "Untitled Story";
+        
+        // Build storyScenes array: [cover, scene1, scene2, ...]
         const loadedScenes: string[] = [];
-        // Try multiple possible key patterns for story scenes
-        for (let i = 1; i <= totalScenes; i++) {
-          // Try different possible key patterns
-          const sceneUrl = 
-            sessionStorage.getItem(`storyScene_${i}`) ||
-            sessionStorage.getItem(`adventureScene_${i}`) ||
-            sessionStorage.getItem(`story_scene_${i}`) ||
-            sessionStorage.getItem(`adventure_scene_${i}`);
-          
-          if (sceneUrl) {
-            // Clean URL by removing query parameters (matching intersearch/1 behavior)
-            loadedScenes.push(sceneUrl.split("?")[0]);
+        
+        // Load story content/pages and extract scene images
+        if (story[0].story_content) {
+          try {
+            // Parse story_content if it's a string
+            const content = typeof story[0].story_content === 'string' 
+              ? JSON.parse(story[0].story_content) 
+              : story[0].story_content;
+            
+            console.log('[preview] Parsed story content:', content);
+            
+            // First, add the story cover if available
+            const coverUrl = story[0].story_cover || content.cover;
+            if (coverUrl) {
+              loadedScenes.push(coverUrl.split("?")[0]);
+              console.log('[preview] Added story cover:', coverUrl);
+            }
+            
+            // Handle different content formats
+            if (Array.isArray(content)) {
+              // If it's an array of pages
+              storyPages = content.map((page: any, index: number) => ({
+                pageNumber: page.pageNumber || index + 1,
+                text: page.text || page.content || ""
+              }));
+              
+              // Extract scene images from pages
+              const scenesFromPages = content
+                .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
+                .filter((url: string | undefined): url is string => !!url);
+              
+              if (scenesFromPages.length > 0) {
+                loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
+                console.log('[preview] Loaded scene images from pages:', scenesFromPages);
+              }
+            } else if (content.pages && Array.isArray(content.pages)) {
+              // If it has a pages property (this is your case)
+              storyPages = content.pages.map((page: any, index: number) => ({
+                pageNumber: page.pageNumber || index + 1,
+                text: page.text || page.content || ""
+              }));
+              
+              // Extract scene images from pages
+              const scenesFromPages = content.pages
+                .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
+                .filter((url: string | undefined): url is string => !!url);
+              
+              if (scenesFromPages.length > 0) {
+                loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
+                console.log('[preview] Loaded scene images from content.pages:', scenesFromPages);
+              }
+            } else if (typeof content === 'string') {
+              // If it's a single string, create one page
+              storyPages = [{ pageNumber: 1, text: content }];
+            }
+            
+            if (storyPages.length > 0) {
+              pagesRead = storyPages.length;
+            }
+          } catch (error) {
+            console.error('Error parsing story content:', error);
           }
         }
         
+        // Set the scenes array (cover + scenes)
         if (loadedScenes.length > 0) {
           storyScenes = loadedScenes;
           currentSceneIndex = 0;
-          pagesRead = storyScenes.length;
+          console.log('[preview] Total scenes (including cover):', storyScenes.length);
         }
-      }
-      
-      // Fallback: if storyPages weren't loaded, try loading individual pages
-      if (storyPages.length === 0) {
-        const pages: Array<{ pageNumber: number; text: string }> = [];
-        for (let i = 1; i <= totalScenes; i++) {
-          const pageText = sessionStorage.getItem(`storyPage${i}`);
-          if (pageText) {
-            pages.push({ pageNumber: i, text: pageText });
-          }
-        }
-        if (pages.length > 0) {
-          storyPages = pages;
-          pagesRead = pages.length;
-        }
+        
+        isLoading = false;
+      } catch (error) {
+        console.error('Error loading story:', error);
+        loadError = error instanceof Error ? error.message : "An unexpected error occurred";
+        isLoading = false;
       }
     }
   });
@@ -225,12 +266,15 @@
 
   // Update page counter text
   $: pageCounterText = storyScenes.length > 0
-    ? `Page ${currentSceneIndex + 1} of ${storyScenes.length} (FREE PREVIEW)`
+    ? currentSceneIndex === 0
+      ? `Cover (FREE PREVIEW)`
+      : `Page ${currentSceneIndex} of ${storyScenes.length - 1} (FREE PREVIEW)`
     : "Page 1 of 2 (FREE PREVIEW) • Pages 3-5 available after purchase";
   
   // Get current page text
-  $: currentPageText = storyPages.length > 0 && currentSceneIndex < storyPages.length
-    ? storyPages[currentSceneIndex].text
+  // Adjust index for story pages since cover is index 0
+  $: currentPageText = storyPages.length > 0 && currentSceneIndex > 0 && (currentSceneIndex - 1) < storyPages.length
+    ? storyPages[currentSceneIndex - 1].text
     : '';
 </script>
 
@@ -334,79 +378,81 @@
             </div>
             <div class="frame-1410104106">
               <div class="book-container">
-                {#if storyScenes.length > 0}
-                  <!-- Mobile: Split into left and right halves -->
-                  <div class="mobile-image-split">
-                    <div class="mobile-image-half mobile-image-left">
-                      <div class="image">
-                        <img
-                          src={storyScenes[currentSceneIndex]}
-                          alt={`Scene ${currentSceneIndex + 1} - Left`}
-                          class="scene-main-image scene-image-left"
-                          draggable="false"
-                        />
-                        <div class="frame-1410104055">
-                          <div class="tag">
-                            <div>
-                              <span class="freepreviewpages_span"
-                                >Free preview Pages</span
-                              >
-                            </div>
-                          </div>
-                        </div>
-                        <div class="inner-shadow"></div>
-                      </div>
-                    </div>
-                    <div class="mobile-image-half mobile-image-right">
-                      <div class="image_01">
-                        <img
-                          src={storyScenes[currentSceneIndex]}
-                          alt={`Scene ${currentSceneIndex + 1} - Right`}
-                          class="scene-main-image scene-image-right"
-                          draggable="false"
-                        />
-                        <div class="frame-1410104055_01">
-                          <div class="tag_01">
-                            <div>
-                              <span class="freepreviewpages_01_span"
-                                >Free preview Pages</span
-                              >
-                            </div>
-                          </div>
-                        </div>
-                        <div class="inner-shadow"></div>
-                      </div>
-                    </div>
+                {#if isLoading}
+                  <!-- Loading state -->
+                  <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p>Loading story...</p>
                   </div>
+                {:else if loadError}
+                  <!-- Error state -->
+                  <div class="error-container">
+                    <p class="error-message">Error: {loadError}</p>
+                    <button class="retry-button" on:click={() => window.location.reload()}>Retry</button>
+                  </div>
+                {:else if storyScenes.length > 0}
+                  {#if currentSceneIndex === 0}
+                    <!-- Cover: Single image display -->
+                    <div class="cover-image-container">
+                      <div class="image cover-image">
+                        <img
+                          src={storyScenes[currentSceneIndex]}
+                          alt="Story Cover"
+                          class="scene-main-image cover-main-image"
+                          draggable="false"
+                        />
+                        <div class="inner-shadow"></div>
+                      </div>
+                    </div>
+                  {:else}
+                    <!-- Scenes: Split into left and right halves -->
+                    <div class="mobile-image-split">
+                      <div class="mobile-image-half mobile-image-left">
+                        <div class="image">
+                          <img
+                            src={storyScenes[currentSceneIndex]}
+                            alt={`Scene ${currentSceneIndex} - Left`}
+                            class="scene-main-image scene-image-left"
+                            draggable="false"
+                          />
+                          <div class="frame-1410104055">
+                            <div class="tag">
+                              <div>
+                                <span class="freepreviewpages_span"
+                                  >Free preview Pages</span
+                                >
+                              </div>
+                            </div>
+                          </div>
+                          <div class="inner-shadow"></div>
+                        </div>
+                      </div>
+                      <div class="mobile-image-half mobile-image-right">
+                        <div class="image_01">
+                          <img
+                            src={storyScenes[currentSceneIndex]}
+                            alt={`Scene ${currentSceneIndex} - Right`}
+                            class="scene-main-image scene-image-right"
+                            draggable="false"
+                          />
+                          <div class="frame-1410104055_01">
+                            <div class="tag_01">
+                              <div>
+                                <span class="freepreviewpages_01_span"
+                                  >Free preview Pages</span
+                                >
+                              </div>
+                            </div>
+                          </div>
+                          <div class="inner-shadow"></div>
+                        </div>
+                      </div>
+                    </div>
+                  {/if}
                 {:else}
-                  <!-- Default placeholder when no scenes are loaded -->
-                  <div class="mobile-image-split">
-                    <div class="mobile-image-half mobile-image-left">
-                      <div class="image">
-                        <div class="frame-1410104055">
-                          <div class="tag">
-                            <div>
-                              <span class="freepreviewpages_span"
-                                >Free preview Pages</span
-                              >
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="mobile-image-half mobile-image-right">
-                      <div class="image_01">
-                        <div class="frame-1410104055_01">
-                          <div class="tag_01">
-                            <div>
-                              <span class="freepreviewpages_01_span"
-                                >Free preview Pages</span
-                              >
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <!-- No scenes available -->
+                  <div class="no-content-container">
+                    <p>No story scenes available</p>
                   </div>
                 {/if}
               </div>
@@ -459,21 +505,38 @@
               {#if storyScenes.length > 0}
                 {#each storyScenes as _, idx}
                   {#if idx === 0}
-                    <div class="number" class:active={currentSceneIndex === idx} on:click={() => goToScene(idx)}>
-                      <img src={Book} alt="book" />
+                    <div 
+                      class="number" 
+                      class:active={currentSceneIndex === idx} 
+                      on:click={() => goToScene(idx)} 
+                      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goToScene(idx)}
+                      role="button" 
+                      tabindex="0"
+                    >
+                      <img src={Book} alt="Cover" />
                     </div>
                   {:else if idx === 1}
-                    <div class="number_01" class:active={currentSceneIndex === idx} on:click={() => goToScene(idx)}>
-                      <img src={EnvelopeSimple} alt="envelope" />
+                    <div 
+                      class="number_01" 
+                      class:active={currentSceneIndex === idx} 
+                      on:click={() => goToScene(idx)} 
+                      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goToScene(idx)}
+                      role="button" 
+                      tabindex="0"
+                    >
+                      <img src={EnvelopeSimple} alt="Page 1" />
                     </div>
                   {:else}
                     <div 
                       class="number_02" 
                       class:active={currentSceneIndex === idx}
                       on:click={() => goToScene(idx)}
+                      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goToScene(idx)}
                       class:locked={idx > 1}
+                      role="button" 
+                      tabindex="0"
                     >
-                      <div class="text-1"><span class="f_span">{idx + 1}</span></div>
+                      <div class="text-1"><span class="f_span">{idx}</span></div>
                     </div>
                   {/if}
                 {/each}
@@ -1426,7 +1489,6 @@
   .image,
   .image_01 {
     flex: 1 1 0;
-    padding: 16px;
     background: white;
     overflow: hidden;
     border-radius: 16px;
@@ -1515,6 +1577,39 @@
     width: 100%;
   }
 
+  /* Cover Image Styles */
+  .cover-image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+  }
+
+  .cover-image {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: white;
+    border-radius: 24px;
+    box-shadow: -2px 10px 0px black;
+    overflow: hidden;
+    max-width: 600px;
+    width: 100%;
+  }
+
+  .cover-main-image {
+    display: block;
+    max-width: 100%;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    border-radius: 0;
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
+  }
+
   /* Mobile image split container - book style */
   .mobile-image-split {
     display: flex;
@@ -1596,6 +1691,70 @@
     bottom: 0;
     left: 0;
     z-index: 2;
+  }
+
+  /* Loading, Error, and No Content States */
+  .loading-container,
+  .error-container,
+  .no-content-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #438bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-container p,
+  .no-content-container p {
+    color: #666d80;
+    font-size: 18px;
+    font-family: Quicksand;
+    font-weight: 600;
+  }
+
+  .error-container {
+    gap: 20px;
+  }
+
+  .error-message {
+    color: #f44336;
+    font-size: 16px;
+    font-family: Quicksand;
+    font-weight: 600;
+  }
+
+  .retry-button {
+    padding: 12px 24px;
+    background: #438bff;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .retry-button:hover {
+    background: #3a7de8;
   }
 
   .modal-overlay {
@@ -1722,6 +1881,23 @@
     .mobile-image-half {
       width: 100%;
     }
+    
+    /* Cover image mobile styles */
+    .cover-image-container {
+      width: 100%;
+      padding: 0;
+    }
+    
+    .cover-image {
+      max-width: 100%;
+      width: 100%;
+    }
+    
+    .cover-main-image {
+      max-height: 70vh;
+      width: 100%;
+    }
+    
     .two-pageview_span {
       font-size: 14px;
     }

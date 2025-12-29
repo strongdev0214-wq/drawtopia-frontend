@@ -20,8 +20,18 @@
 
   function handleChooseRecordVideo() {
     if (selectedOption === 'preview') {
-      // Navigate directly to preview page, no modal needed
-      goto('/preview/default');
+      // Navigate directly to preview page with story ID from sessionStorage
+      if (browser) {
+        const storyId = sessionStorage.getItem('currentStoryId');
+        if (storyId) {
+          goto(`/preview/default?storyId=${storyId}`);
+        } else {
+          console.warn('No story ID found in sessionStorage');
+          goto('/preview/default');
+        }
+      } else {
+        goto('/preview/default');
+      }
     } else {
       // Show modal for record option
       showDevicePermissionModal = true;

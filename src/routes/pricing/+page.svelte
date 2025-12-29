@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { goto } from "$app/navigation";
+    import { browser } from "$app/environment";
     import drawtopia from "../../assets/logo.png";
     import xicon from "../../assets/X.svg";
     import checkicon from "../../assets/GrayCheck.svg";
@@ -6,6 +8,88 @@
     import whitecheckicon from "../../assets/WhiteCheck.svg";
     import heavygroup from "../../assets/Heavy-Group.svg";
     import lightgroup from "../../assets/Light-Group.svg";
+    import { supabase } from "../../lib/supabase";
+    import { user } from "../../lib/stores/auth";
+
+    // API base URL for the backend
+    const API_BASE_URL = "https://drawtopia-backend.vercel.app";
+
+    let isLoadingSubscription = false;
+    let subscriptionError = "";
+
+    function handlePurchase() {
+        goto("/purchase");
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handlePurchase();
+        }
+    }
+
+    function handleSubscriptionKeyDown(event: KeyboardEvent) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleStartSubscription();
+        }
+    }
+
+    async function handleStartSubscription() {
+        if (isLoadingSubscription) return;
+        
+        isLoadingSubscription = true;
+        subscriptionError = "";
+        
+        try {
+            // Get current user info from auth store (already synced and refreshed)
+            let userEmail = null;
+            let userId = null;
+            
+            if ($user) {
+                userEmail = $user.email;
+                userId = $user.id;
+            }
+            console.log('[handleStartSubscription] userEmail:', userEmail);
+            console.log('[handleStartSubscription] userId:', userId);
+
+            // Call the backend to create a Stripe checkout session
+            const response = await fetch(`${API_BASE_URL}/api/stripe/create-subscription-checkout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    price_type: 'monthly',
+                    user_email: userEmail,
+                    user_id: userId,
+                    success_url: `${window.location.origin}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+                    cancel_url: `${window.location.origin}/pricing`
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to create checkout session');
+            }
+            
+            const data = await response.json();
+            
+            if (data.success && data.checkout_url) {
+                // Redirect to Stripe Checkout
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error(data.message || 'Failed to get checkout URL');
+            }
+        } catch (error) {
+            console.error('Subscription error:', error);
+            subscriptionError = error instanceof Error ? error.message : 'An error occurred';
+            // Show error to user
+            alert(`Failed to start subscription: ${subscriptionError}`);
+        } finally {
+            isLoadingSubscription = false;
+        }
+    }
 </script>
 
 <div class="pop-up">
@@ -60,7 +144,7 @@
                             >
                         </div>
                     </div>
-                    <div class="button">
+                    <div class="button" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
                         <div class="start-creating-free">
                             <span class="startcreatingfree_span"
                                 >Start Creating Free</span
@@ -143,7 +227,7 @@
                             >
                         </div>
                     </div>
-                    <div class="button_01">
+                    <div class="button_01" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
                         <div class="get-story-bundle">
                             <span class="getstorybundle_span"
                                 >Get Story Bundle</span
@@ -234,11 +318,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="button_02">
+                    <div class="button_02" on:click={handleStartSubscription} on:keydown={handleSubscriptionKeyDown} role="button" tabindex="0" class:loading={isLoadingSubscription}>
                         <div class="start-subscription">
-                            <span class="startsubscription_span"
-                                >Start Subscription</span
-                            >
+                            <span class="startsubscription_span">
+                                {#if isLoadingSubscription}
+                                    Loading...
+                                {:else}
+                                    Start Subscription
+                                {/if}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -342,7 +430,7 @@
                     </div>
                 </div>
                 <div class="ellipse-1426_02"></div>
-                <div class="button_03">
+                <div class="button_03" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
                     <div class="start-creating-free_01">
                         <span class="startcreatingfree_01_span"
                             >Start Creating Free</span
@@ -430,7 +518,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="button_04">
+                <div class="button_04" on:click={handlePurchase} on:keydown={handleKeyDown} role="button" tabindex="0">
                     <div class="start-creating-free_02">
                         <span class="startcreatingfree_02_span"
                             >Start Creating Free</span
@@ -1445,6 +1533,12 @@
         box-shadow: 0px 0px 0px 2px #f0f0f0;
     }
 
+    .button_02.loading {
+        opacity: 0.7;
+        cursor: wait;
+        pointer-events: none;
+    }
+
     .frame-1410103753 {
         width: 563px;
         flex-direction: column;
@@ -1469,6 +1563,7 @@
         display: inline-flex;
         cursor: pointer;
         transition: all 0.2s ease;
+        z-index: 3;
     }
 
     .button_03:hover {

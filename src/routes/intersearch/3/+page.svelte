@@ -2,6 +2,8 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { getStoryById } from '../../../lib/database/stories';
   import logo from "../../../assets/logo.png";
   import timeIcon from "../../../assets/redtimeicon.svg";
   import favorblueicon from "../../../assets/favorblueicon.svg";
@@ -27,10 +29,15 @@
     image: string;
   };
 
-  const totalTime = "0:48";
-  const hintsUsedTotal = 0;
-  const avgStars = 3.0;
-  const bestScene = "Scene 1";
+  let totalTime = "0:48";
+  let hintsUsedTotal = 0;
+  let avgStars = 3.0;
+  let bestScene = "Scene 1";
+  let isLoading = true;
+  let loadError = "";
+  let storyId: string | null = null;
+  let storyTitle = "Adventure Complete!";
+  let characterName = "Luna";
 
   // Scene titles based on world (matching intersearch/1)
   const sceneTitles: { [key: string]: string[] } = {
@@ -93,32 +100,160 @@
     },
   ];
 
-  onMount(() => {
-    if (browser) {
-      // Get selected world from sessionStorage
-      const selectedWorld = sessionStorage.getItem("intersearch_world") || "enchanted-forest";
-      const titles = sceneTitles[selectedWorld] || sceneTitles["enchanted-forest"];
-      
-      // Load images from sessionStorage for first 4 scenes
-      const loadedScenes: Scene[] = [];
-      for (let i = 1; i <= 4; i++) {
-        const storedImageUrl = sessionStorage.getItem(`intersearch_scene_${i}`);
-        // Clean URL by removing query parameters (matching intersearch/1 behavior)
-        const imageUrl = storedImageUrl ? storedImageUrl.split("?")[0] : null;
-        const sceneTitle = titles[i - 1] || `Scene ${i}`;
-        
-        loadedScenes.push({
-          id: i,
-          title: `Scene ${i}`,
-          subtitle: sceneTitle,
-          time: "10:13", // You can store this in sessionStorage if needed
-          hints: 0, // You can store this in sessionStorage if needed
-          stars: 3, // You can store this in sessionStorage if needed
-          image: imageUrl || scenes[i - 1].image // Fallback to default image if not found
-        });
+  // Load scenes from sessionStorage as fallback
+  function loadScenesFromSessionStorage(): boolean {
+    try {
+      const storedScenes = sessionStorage.getItem('intersearch_scenes');
+      if (!storedScenes) {
+        console.warn('[intersearch/3] No scenes in sessionStorage');
+        return false;
       }
       
-      scenes = loadedScenes;
+      const scenesData = JSON.parse(storedScenes);
+      console.log('[intersearch/3] Loading scenes from sessionStorage:', scenesData);
+      
+      // Set story details from sessionStorage
+      storyTitle = scenesData.storyTitle || "Adventure Complete!";
+      characterName = scenesData.characterName || "Character";
+      
+      // Determine world for fallback titles
+      const world = scenesData.world || 'enchanted-forest';
+      const titles = sceneTitles[world] || sceneTitles["enchanted-forest"];
+      
+      // Build scenes array from sessionStorage data
+      const loadedScenes: Scene[] = [];
+      
+      if (scenesData.scenes && Array.isArray(scenesData.scenes)) {
+        scenesData.scenes.forEach((scene: any, index: number) => {
+          const sceneImage = scene.sceneImage ? scene.sceneImage.split('?')[0] : null;
+          const sceneTitle = scene.sceneTitle || titles[index] || `Scene ${index + 1}`;
+          
+          loadedScenes.push({
+            id: index + 1,
+            title: `Scene ${index + 1}`,
+            subtitle: sceneTitle,
+            time: "10:13", // Default time - could be enhanced later
+            hints: 0, // Default hints - could be enhanced later
+            stars: 3, // Default stars - could be enhanced later
+            image: sceneImage || scenes[index]?.image || magicalforest
+          });
+        });
+        
+        if (loadedScenes.length > 0) {
+          scenes = loadedScenes;
+          console.log('[intersearch/3] Loaded scenes from sessionStorage:', scenes);
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[intersearch/3] Error loading scenes from sessionStorage:', error);
+      return false;
+    }
+  }
+
+  onMount(async () => {
+    if (browser) {
+      // Get story ID from URL query params
+      storyId = $page.url.searchParams.get('storyId');
+      
+      if (!storyId) {
+        // No story ID provided, try to load from sessionStorage
+        console.warn("No storyId provided, attempting to load from sessionStorage");
+        const loadedFromSession = loadScenesFromSessionStorage();
+        if (!loadedFromSession) {
+          console.warn("No scenes in sessionStorage, using default fallback scenes");
+        }
+        isLoading = false;
+        return;
+      }
+      
+      try {
+        // Load story from database
+        const result = await getStoryById(storyId);
+        
+        if (!result.success || !result.data) {
+          // Database load failed, try sessionStorage as fallback
+          console.warn("Failed to load from database, trying sessionStorage");
+          const loadedFromSession = loadScenesFromSessionStorage();
+          if (!loadedFromSession) {
+            loadError = result.error || "Failed to load story";
+          }
+          isLoading = false;
+          return;
+        }
+        
+        const story = result.data;
+        console.log("Loaded interactive search story for results:", story);
+        
+        // Set story details
+        storyTitle = story[0].story_title || "Adventure Complete!";
+        characterName = story[0].character_name || "character";
+        
+        // Determine world for scene titles
+        const selectedWorld = story[0].story_world === 'forest' ? 'enchanted-forest' : 
+                            story[0].story_world === 'space' ? 'outer-space' : 
+                            story[0].story_world === 'underwater' ? 'underwater-kingdom' : 
+                            'enchanted-forest';
+        const titles = sceneTitles[selectedWorld] || sceneTitles["enchanted-forest"];
+        
+        // Load story content to get scenes
+        let scenesLoaded = false;
+        if (story[0].story_content) {
+          try {
+            const content = typeof story[0].story_content === 'string' 
+              ? JSON.parse(story[0].story_content) 
+              : story[0].story_content;
+            
+            console.log('[intersearch/3] Parsed story content:', content);
+            
+            // Build scenes array from content
+            const loadedScenes: Scene[] = [];
+            
+            if (content.scenes && Array.isArray(content.scenes)) {
+              content.scenes.forEach((scene: any, index: number) => {
+                const sceneImage = scene.sceneImage ? scene.sceneImage.split('?')[0] : null;
+                const sceneTitle = scene.sceneTitle || titles[index] || `Scene ${index + 1}`;
+                
+                loadedScenes.push({
+                  id: index + 1,
+                  title: `Scene ${index + 1}`,
+                  subtitle: sceneTitle,
+                  time: "10:13", // Default time - could be enhanced later
+                  hints: 0, // Default hints - could be enhanced later
+                  stars: 3, // Default stars - could be enhanced later
+                  image: sceneImage || scenes[index]?.image || magicalforest
+                });
+              });
+              
+              if (loadedScenes.length > 0) {
+                scenes = loadedScenes;
+                scenesLoaded = true;
+                console.log('[intersearch/3] Loaded scenes from database:', scenes);
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing story content:', error);
+          }
+        }
+        
+        // If database didn't have valid scenes, try sessionStorage
+        if (!scenesLoaded) {
+          console.warn('[intersearch/3] No valid scenes in database, trying sessionStorage');
+          loadScenesFromSessionStorage();
+        }
+        
+        isLoading = false;
+      } catch (error) {
+        console.error('Error loading story:', error);
+        // Try sessionStorage as last resort
+        const loadedFromSession = loadScenesFromSessionStorage();
+        if (!loadedFromSession) {
+          loadError = error instanceof Error ? error.message : "An unexpected error occurred";
+        }
+        isLoading = false;
+      }
     }
   });
 
@@ -135,11 +270,16 @@
   }
 
   function handlePlayAgain() {
-    // Set flag to regenerate scenes
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('intersearch_regenerate', 'true');
-    }
+    // Navigate back to intersearch page to start a new adventure
     goto('/intersearch');
+  }
+  
+  function handleRetry() {
+    if (storyId) {
+      window.location.reload();
+    } else {
+      goto('/intersearch');
+    }
   }
 </script>
 
@@ -148,13 +288,32 @@
     <img class="brand" src={logo} alt="Drawtopia" />
   </div>
 
-  <div class="card">
-    <div class="header-container">
-      <h2 class="title">Adventure Complete!</h2>
-      <div class="subtitle">You found Luna in all 4 scenes!</div>
+  {#if isLoading}
+    <div class="card">
+      <div class="header-container">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading results...</div>
+      </div>
     </div>
+  {:else if loadError}
+    <div class="card">
+      <div class="header-container">
+        <h2 class="title" style="color: #f44336;">Error</h2>
+        <div class="subtitle">{loadError}</div>
+      </div>
+      <div class="actions">
+        <button class="btn go-home" on:click={handleRetry}>Retry</button>
+        <button class="btn go-home" on:click={handleGoHome}>Go Home</button>
+      </div>
+    </div>
+  {:else}
+    <div class="card">
+      <div class="header-container">
+        <h2 class="title">{storyTitle}</h2>
+        <div class="subtitle">You found {characterName} in all {scenes.length} scenes!</div>
+      </div>
 
-    <hr class="divider" />
+      <hr class="divider" />
 
     <div class="metrics">
       <div class="metric-row">
@@ -253,9 +412,33 @@
       <button class="btn go-home" on:click={handleGoHome}>Go Home</button>
     </div>
   </div>
+  {/if}
 </div>
 
 <style>
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #438bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-text {
+    font-family: Quicksand, sans-serif;
+    font-size: 20px;
+    color: #727272;
+    text-align: center;
+    margin-top: 20px;
+  }
+
   .complete-outer {
     min-height: 100vh;
     background: #ffffff;
