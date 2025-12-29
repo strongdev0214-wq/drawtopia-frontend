@@ -7,6 +7,7 @@ import { supabase } from '../supabase';
 export interface Story {
   id?: string;
   created_at?: string;
+  user_id?: string; // User ID of the story creator/owner
   child_profile_id: string;
   character_name: string;
   character_type: 'person' | 'animal' | 'magical_creature';
@@ -55,6 +56,7 @@ export async function createStory(story: Story): Promise<DatabaseResult> {
       .from('stories')
       .insert([{
         uid: uid,
+        user_id: story.user_id,
         child_profile_id: story.child_profile_id,
         character_name: story.character_name,
         character_type: story.character_type,

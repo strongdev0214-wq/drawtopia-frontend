@@ -22,6 +22,7 @@
   import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
   import { createStory, getStoryById } from '../../../lib/database/stories';
   import { storyCreation } from '../../../lib/stores/storyCreation';
+  import { user } from '../../../lib/stores/auth';
   import { get } from 'svelte/store';
 
   let activePage = 1;
@@ -407,6 +408,7 @@
 
       // Prepare story data
       const storyData = {
+        user_id: $user?.id,
         child_profile_id: childProfileId,
         character_name: charName,
         character_type: dbType,

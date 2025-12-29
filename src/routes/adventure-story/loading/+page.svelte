@@ -8,6 +8,7 @@
     import { supabase } from '../../../lib/supabase';
     import type { ChildProfile } from '../../../lib/database/childProfiles';
     import { createStory } from '../../../lib/database/stories';
+    import { user } from '../../../lib/stores/auth';
     import { buildStoryTextPrompt, buildStoryScenePrompt } from '../../../lib/promptBuilder';
     import drawtopia from "../../../assets/logo.png";
     import shieldstar from "../../../assets/ShieldStar.svg";
@@ -154,6 +155,7 @@
 
             // Prepare story data
             const storyData = {
+                user_id: $user?.id,
                 child_profile_id: storyState.selectedChildProfileId,
                 character_name: storyState.characterName,
                 character_type: storyState.characterType,

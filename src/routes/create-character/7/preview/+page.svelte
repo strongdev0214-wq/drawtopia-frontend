@@ -16,6 +16,7 @@
   import { getSelectedImageUrl } from "../../../../lib/imageGeneration";
   import { storyCreation } from "../../../../lib/stores/storyCreation";
   import { createStory } from "../../../../lib/database/stories";
+  import { user } from "../../../../lib/stores/auth";
 
   let isMobile = false;
   let characterName = "";
@@ -103,7 +104,10 @@
       if (currentState) {
 
         // Create story in database
-        const storyData = storyCreation.toStoryObject(currentState);
+        const storyData = {
+          ...storyCreation.toStoryObject(currentState),
+          user_id: $user?.id
+        };
 
         const result = await createStory(storyData as any);
         

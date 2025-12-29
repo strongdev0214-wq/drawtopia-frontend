@@ -508,7 +508,7 @@
       <div class="logo-img"></div>
     </div>
   </div>
-  <MobileBackBtn />
+  <MobileBackBtn backRoute="/dashboard" />
   {#if !showStoryPreviewEndModal}
   <div class="frame-1410103818">
     <div class="frame-13">
@@ -859,7 +859,13 @@
   </div>
   <div class="frame-1410103860_01">
     <div class="frame-1410103870">
-      <div class="button_04">
+      <div 
+        class="button_04" 
+        role="button"
+        tabindex="0"
+        on:click={() => goto('/dashboard')}
+        on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goto('/dashboard')}
+      >
         <img src={ArrowLeft} alt="arrow" />
         <div class="back"><span class="back_span">Back</span></div>
       </div>
@@ -1256,6 +1262,12 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .button_02:hover:not(.disabled) {
+    background: #f5f5f5;
   }
 
   .number {
@@ -1372,6 +1384,12 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .button_03:hover:not(.disabled) {
+    background: #3a7ae8;
   }
 
   .mobile-button_03 {
@@ -1392,6 +1410,12 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .button_04:hover {
+    background: #f5f5f5;
   }
 
   .frame-1410104191 {
@@ -2180,6 +2204,12 @@
       gap: 10px;
       display: flex;
       width: 50%;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .mobile-button_03:hover:not(.disabled) {
+      background: #3a7ae8;
     }
     .mobile-button_02 {
       width: 50%;
@@ -2195,6 +2225,12 @@
       align-items: center;
       gap: 10px;
       display: flex;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .mobile-button_02:hover:not(.disabled) {
+      background: #f5f5f5;
     }
     .button_03 {
       display: none;
