@@ -182,24 +182,35 @@
     { value: "failed", label: "Failed" },
   ];
 
-  // Filtered stories based on selected filters
+  // Filtered stories based on selected filters (matching HomeLibraryView logic)
   $: filteredStories = stories.filter((story) => {
-    // Format filter
+    // Filter by story type (format)
     if (selectedFormat !== "all") {
-      const storyAdventureType = story.adventure_type as string;
-      if (selectedFormat === "story_adventure" && storyAdventureType === 'interactive_search') return false;
-      if (selectedFormat === "interactive_search" && storyAdventureType !== 'interactive_search') return false;
+      // Default to "story" if story_type is not set (as per createStory default)
+      const storyType = (story.story_type || "story").toLowerCase();
+      if (selectedFormat === "story_adventure" && storyType !== "story") {
+        return false;
+      }
+      if (selectedFormat === "interactive_search" && storyType !== "search") {
+        return false;
+      }
     }
 
-    // Child filter
+    // Filter by child
     if (selectedChild !== "all") {
-      const storyChildId = story.child_profiles?.id || story.child_profile_id;
-      if (storyChildId !== selectedChild) return false;
+      const childId = story.child_profile_id?.toString() || story.child_profile_id;
+      const selectedChildId = selectedChild.toString();
+      if (childId !== selectedChildId) {
+        return false;
+      }
     }
 
-    // Status filter
+    // Filter by status
     if (selectedStatus !== "all") {
-      if (story.status !== selectedStatus) return false;
+      const storyStatus = (story.status || "").toLowerCase();
+      if (storyStatus !== selectedStatus.toLowerCase()) {
+        return false;
+      }
     }
 
     return true;
