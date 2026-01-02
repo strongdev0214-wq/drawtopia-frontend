@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
+  import { goto, beforeNavigate } from "$app/navigation";
   import { browser } from "$app/environment";
   import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
@@ -21,7 +21,7 @@
   import PreviewLockModal from "../../../components/PreviewLockModal.svelte";
   import { user } from "../../../lib/stores/auth";
   import { getUserProfile } from "../../../lib/auth";
-  import { getStoryById } from "../../../lib/database/stories";
+  import { getStoryById, updateReadingState } from "../../../lib/database/stories";
 
   let showStoryInfoModal = false;
   let showShareStoryModal = false;
@@ -52,6 +52,12 @@
   let duration = 0; // Total duration in seconds
   let audioSpeed = 1; // Playback speed
   let isAudioAvailable = false; // Whether audio exists for current page
+
+  // Reading time tracking
+  let readingStartTime: number = 0; // Timestamp when reading started
+  let totalReadingTime: number = 0; // Total time spent reading in seconds
+  let readingTimerInterval: number | null = null; // Interval ID for the timer
+  let hasAudioBeenPlayed: boolean = false; // Track if audio has been played
 
   // Reactive statement to check subscription status when user changes
   $: if (browser && $user) {
@@ -231,8 +237,67 @@
         loadError = error instanceof Error ? error.message : "An unexpected error occurred";
         isLoading = false;
       }
+      
+      // Start reading time tracker
+      startReadingTimer();
     }
   });
+
+  // Start reading timer
+  function startReadingTimer() {
+    if (!browser) return;
+    
+    readingStartTime = Date.now();
+    console.log('[reading-timer] Started reading timer');
+    
+    // Update every second
+    readingTimerInterval = window.setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - readingStartTime) / 1000);
+      totalReadingTime = elapsedSeconds;
+    }, 1000);
+  }
+  
+  // Stop reading timer and save to database
+  async function stopReadingTimerAndSave() {
+    if (!browser || !currentStoryId) return;
+    
+    // Clear interval
+    if (readingTimerInterval !== null) {
+      clearInterval(readingTimerInterval);
+      readingTimerInterval = null;
+    }
+    
+    // Calculate final reading time
+    if (readingStartTime > 0) {
+      const elapsedSeconds = Math.floor((Date.now() - readingStartTime) / 1000);
+      totalReadingTime = elapsedSeconds;
+    }
+    
+    // Only save if user spent at least 1 second
+    if (totalReadingTime < 1) {
+      console.log('[reading-timer] Reading time too short, not saving');
+      return;
+    }
+    
+    console.log(`[reading-timer] Stopped. Total time: ${totalReadingTime} seconds`);
+    
+    // Prepare reading state based on story type (we'll assume 'story' type for now)
+    const readingState = {
+      reading_time: totalReadingTime,
+      audio_listened: hasAudioBeenPlayed
+    };
+    
+    try {
+      const result = await updateReadingState(currentStoryId, readingState);
+      if (result.success) {
+        console.log('[reading-timer] Successfully updated reading state');
+      } else {
+        console.error('[reading-timer] Failed to update reading state:', result.error);
+      }
+    } catch (error) {
+      console.error('[reading-timer] Error updating reading state:', error);
+    }
+  }
 
   function previousScene() {
     if (currentSceneIndex > 0) {
@@ -407,6 +472,7 @@
         playPromise
           .then(() => {
             isPlaying = true;
+            hasAudioBeenPlayed = true; // Track that audio has been played
             console.log("[audio] Playing audio");
           })
           .catch((error) => {
@@ -479,6 +545,12 @@
   // Cleanup on component destroy
   onDestroy(() => {
     cleanupAudio();
+    stopReadingTimerAndSave();
+  });
+  
+  // Save reading state before navigating away
+  beforeNavigate(() => {
+    stopReadingTimerAndSave();
   });
 
   // Update page counter text
@@ -889,10 +961,19 @@
   </div>
   {/if}
   {#if showStoryInfoModal}
-    <StoryInfoModal />
+    <StoryInfoModal 
+      storyId={currentStoryId || ""}
+      storyTitle={storyTitle}
+      on:close={() => showStoryInfoModal = false}
+      on:delete={(e) => {
+        showStoryInfoModal = false;
+        // Navigate back to dashboard after deletion
+        goto('/dashboard');
+      }}
+    />
   {/if}
   {#if showShareStoryModal}
-    <ShareStoryModal />
+    <ShareStoryModal on:close={() => showShareStoryModal = false} />
   {/if}
   {#if showStoryPreviewEndModal}
     <div
@@ -1212,6 +1293,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .button:hover {
+    background: #f8fafb;
+    outline-color: #438bff;
+    transform: translateY(-1px);
+  }
+
+  .button:active {
+    transform: translateY(0);
   }
 
   .button_01 {
@@ -1231,6 +1324,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .button_01:hover {
+    background: #f8fafb;
+    outline-color: #438bff;
+    transform: translateY(-1px);
+  }
+
+  .button_01:active {
+    transform: translateY(0);
   }
 
   .notification {
@@ -2170,6 +2275,7 @@
       display: flex;
       width: 100%;
       justify-content: center;
+      gap: 10px;
     }
     .preview-story-cover {
       padding-left: 20px;

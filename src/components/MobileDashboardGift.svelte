@@ -42,31 +42,6 @@
     dispatch("sendThankYou", { giftId });
   }
 
-  // Default sample data if no gifts provided
-  $: sampleGifts =
-    gifts.length > 0
-      ? gifts
-      : [
-          {
-            id: "1",
-            childName: "Emma",
-            age: 7,
-            sendTo: "parent@email.com",
-            occasion: "Birthday",
-            status: "pending",
-            sentDate: "Oct 15, 2024",
-          },
-          {
-            id: "2",
-            childName: "Liam",
-            age: 5,
-            sendTo: "sister@email.com",
-            occasion: "First day at School",
-            status: "completed",
-            sentDate: "Oct 10, 2024",
-            deliveryDate: "Oct 20",
-          },
-        ];
 </script>
 
 <div class="dashboard-story-library">
@@ -113,8 +88,13 @@
         <div class="error-state">
           <p class="error-text">{error}</p>
         </div>
+      {:else if gifts.length === 0}
+        <div class="empty-state">
+          <p class="empty-text">No gifts found.</p>
+          <p class="empty-subtext">Purchase your first gift to get started!</p>
+        </div>
       {:else}
-        {#each sampleGifts as gift}
+        {#each gifts as gift}
           <GiftCard
             {gift}
             on:resendLink={(e) => handleResendLink(e.detail.giftId)}
@@ -277,7 +257,8 @@
 
   /* Loading, Error, and Empty States */
   .loading-state,
-  .error-state {
+  .error-state,
+  .empty-state {
     align-self: stretch;
     display: flex;
     flex-direction: column;
@@ -319,6 +300,22 @@
     font-size: 16px;
     font-family: Quicksand;
     font-weight: 500;
+    margin: 0;
+  }
+
+  .empty-text {
+    color: #666d80;
+    font-size: 18px;
+    font-family: Quicksand;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  .empty-subtext {
+    color: #90a1b9;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 400;
     margin: 0;
   }
 

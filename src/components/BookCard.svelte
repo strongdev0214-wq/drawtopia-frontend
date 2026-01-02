@@ -369,7 +369,13 @@
         {/if}
       </div>
     </div>
-    <div class="button_01">
+    <div 
+      class="button_01"
+      on:click={() => dispatch('share', item)}
+      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && dispatch('share', item)}
+      role="button"
+      tabindex="0"
+    >
       <div class="sharenetwork">
         <img src={simplesharenetwork} alt="share" class="icon-img" />
       </div>
@@ -506,8 +512,8 @@
   }
 
   .action-icon {
-    width: 12.5px;
-    height: 12.5px;
+    width: 16px;
+    height: 16px;
     object-fit: contain;
   }
 
@@ -739,6 +745,16 @@
     gap: 10px;
     display: flex;
     cursor: pointer;
+    transition: background-color 0.2s ease, outline-color 0.2s ease, transform 0.1s ease;
+  }
+
+  .button_01:hover {
+    background-color: #f5f5f5;
+    outline-color: #438bff;
+  }
+
+  .button_01:active {
+    transform: scale(0.95);
   }
 
   .frame-1410104125 {

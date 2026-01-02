@@ -233,7 +233,15 @@
     </div>
   </div>
   {#if showStoryInfoModal}
-    <StoryInfoModal />
+    <StoryInfoModal 
+      storyId=""
+      storyTitle="Emma's Magical Forest Adventure"
+      on:close={() => showStoryInfoModal = false}
+      on:delete={(e) => {
+        showStoryInfoModal = false;
+        goto('/dashboard');
+      }}
+    />
   {/if}
   {#if showShareStoryModal}
     <ShareStoryModal />

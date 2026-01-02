@@ -5,12 +5,15 @@
   import CharacterCard from "./CharacterCard.svelte";
   import ChildCard from "./ChildCard.svelte";
   import AdvancedSelect from "./AdvancedSelect.svelte";
+  import ShareStoryModal from "./ShareStoryModal.svelte";
   import whitePlus from "../assets/Plus.svg";
   import userCirclePlus from "../assets/UserCirclePlus.svg";
   import bookIcon from "../assets/Book.svg";
   import bookOpen from "../assets/BookOpen.svg";
   import headset from "../assets/OutlineHeadset.svg";
   import starIcon from "../assets/OutlineStar.svg";
+  
+  let showShareStoryModal = false;
 
   export let libraryView: "all" | "characters" | "children" = "all";
   export let setLibraryView: (v: "all" | "characters" | "children") => void;
@@ -30,13 +33,42 @@
   export let filteredStories: any[] = [];
   export let fetchStories: (userId: string) => Promise<void>;
   export let fetchChildProfiles: (userId: string) => Promise<void>;
+  
+  // Reading statistics props
+  export let adventureStoriesCount: number = 0;
+  export let searchStoriesCount: number = 0;
+  export let adventureReadingTime: number = 0;
+  export let searchReadingTime: number = 0;
+  export let audioListenedCount: number = 0;
+  export let averageStars: number = 0;
+  export let averageHints: number = 0;
 
   import { createEventDispatcher } from "svelte";
   const dispatch = createEventDispatcher();
 
+  // Helper function to format reading time
+  function formatReadingTime(seconds: number): string {
+    if (seconds === 0) return '0 s';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    let parts: string[] = [];
+    if (h > 0) parts.push(`${h} h`);
+    if (m > 0) parts.push(`${m} m`);
+    if (s > 0) parts.push(`${s} s`);
+    return parts.length > 0 ? parts.join(' ') : '0 s';
+  }
+
   // Handle character preview event
   function handleCharacterPreview(event: CustomEvent) {
     dispatch("characterPreview", event.detail);
+  }
+
+  // Handle share event
+  function handleShare(event: CustomEvent) {
+    const storyInfo = event.detail;
+    console.log('Share story:', storyInfo);
+    showShareStoryModal = true;
   }
 </script>
 
@@ -165,7 +197,7 @@
             </div>
           {:else}
             {#each filteredStories as story (story.id)}
-              <BookCard item={story} />
+              <BookCard item={story} on:share={handleShare} />
             {/each}
           {/if}
         {:else if libraryView === "characters"}
@@ -218,6 +250,8 @@
       </div>
     </div>
   </div>
+
+  {#if libraryView === "all"}
   <div class="frame-1410104151">
     <div class="frame-2147227615_01">
       <div class="frame-2147227616_02">
@@ -242,8 +276,8 @@
             <div class="story-adventure">
               <span class="storyadventure_span">Story Adventure</span>
             </div>
-            <div class="text-8-books">
-              <span class="fbooks_span">8 Books</span>
+            <div class="text-books">
+              <span class="fbooks_span">{adventureStoriesCount} {adventureStoriesCount === 1 ? 'Book' : 'Books'}</span>
             </div>
           </div>
         </div>
@@ -252,21 +286,17 @@
           <div class="bookopen">
             <img src={bookOpen} alt="bookOpen">
           </div>
-          <div class="total-reading-time-1h-23m">
-            <span class="totalreadingtime1h23m_span_01"
-            >Total reading time:
-          </span><span class="totalreadingtime1h23m_span_02">1h 23m </span>
-        </div>
+          <div class="total-reading-time">
+            <span class="totalreadingtime_span_01">Total reading time: </span><span class="totalreadingtime_span_02">{formatReadingTime(adventureReadingTime)}</span>
+          </div>
       </div>
       <div class="frame-2147227620">
         <div class="headset">
           <img src={headset} alt="headset" class="headset-icon">
         </div>
-        <div class="audio-listened-4-books">
-          <span class="audiolistened4books_span_01"
-          >Audio listened:
-        </span><span class="audiolistened4books_span_02">4 Books</span>
-      </div>
+        <div class="audio-listened">
+          <span class="audiolistened_span_01">Audio listened: </span><span class="audiolistened_span_02">{audioListenedCount} {audioListenedCount === 1 ? 'Book' : 'Books'}</span>
+        </div>
     </div>
   </div>
   <div class="frame-1410104095">
@@ -281,8 +311,8 @@
             <div class="interactive-search">
               <span class="interactivesearch_span">Interactive Search</span>
             </div>
-            <div class="text-3-books">
-              <span class="fbooks_span_01">3 Books</span>
+            <div class="text-books_01">
+              <span class="fbooks_span_01">{searchStoriesCount} {searchStoriesCount === 1 ? 'Book' : 'Books'}</span>
             </div>
           </div>
         </div>
@@ -291,39 +321,36 @@
           <div class="bookopen">
             <img src={bookOpen} alt="bookOpen">
           </div>
-          <div class="total-reading-time-2h-23m">
-            <span class="totalreadingtime2h23m_span_01"
-              >Total reading time:
-            </span><span class="totalreadingtime2h23m_span_02">2h 23m </span>
+          <div class="total-reading-time_01">
+            <span class="totalreadingtime_span_03">Total reading time: </span><span class="totalreadingtime_span_04">{formatReadingTime(searchReadingTime)}</span>
           </div>
         </div>
         <div class="frame-2147227620_01">
           <div class="star">
             <img src={starIcon} alt="starIcon" class="star-icon">
           </div>
-          <div class="average-stars-235">
-            <span class="averagestars235_span_01">Average stars : </span><span
-            class="averagestars235_span_02">2,3/5</span
-            >
+          <div class="average-stars">
+            <span class="averagestars_span_01">Average stars : </span><span class="averagestars_span_02">{averageStars > 0 ? averageStars.toFixed(1) : '0'}/5</span>
           </div>
         </div>
         <div class="frame-2147227621">
           <div class="star">
             <img src={starIcon} alt="starIcon" class="star-icon">
           </div>
-          <div class="average-hints-12-per-scene">
-            <span class="averagehints12perscene_span_01"
-              >Average Hints :
-            </span><span class="averagehints12perscene_span_02"
-              >1.2 Per Scene</span
-            >
+          <div class="average-hints">
+            <span class="averagehints_span_01">Average Hints : </span><span class="averagehints_span_02">{averageHints > 0 ? averageHints.toFixed(1) : '0'} Per Scene</span>
           </div>
         </div>
       </div>
     </div>
   </div>
   <div class="rectangle-42"></div>
+  {/if}
 </div>
+
+{#if showShareStoryModal}
+  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+{/if}
 
 <style>
   .yourlibrary_span {
@@ -497,7 +524,7 @@
     word-wrap: break-word;
   }
 
-  .text-8-books {
+  .text-books {
     align-self: stretch;
   }
 
@@ -516,7 +543,7 @@
     background: #727272;
   }
 
-  .totalreadingtime1h23m_span_01 {
+  .totalreadingtime_span_01 {
     color: #727272;
     font-size: 20px;
     font-family: Quicksand;
@@ -525,7 +552,7 @@
     word-wrap: break-word;
   }
 
-  .totalreadingtime1h23m_span_02 {
+  .totalreadingtime_span_02 {
     color: #141414;
     font-size: 20px;
     font-family: Quicksand;
@@ -534,7 +561,7 @@
     word-wrap: break-word;
   }
 
-  .total-reading-time-1h-23m {
+  .total-reading-time {
     text-align: center;
   }
 
@@ -547,7 +574,7 @@
     background: #727272;
   }
 
-  .audiolistened4books_span_01 {
+  .audiolistened_span_01 {
     color: #727272;
     font-size: 20px;
     font-family: Quicksand;
@@ -556,7 +583,7 @@
     word-wrap: break-word;
   }
 
-  .audiolistened4books_span_02 {
+  .audiolistened_span_02 {
     color: #141414;
     font-size: 20px;
     font-family: Quicksand;
@@ -565,7 +592,7 @@
     word-wrap: break-word;
   }
 
-  .audio-listened-4-books {
+  .audio-listened {
     text-align: center;
   }
 
@@ -614,7 +641,7 @@
     word-wrap: break-word;
   }
 
-  .text-3-books {
+  .text-books_01 {
     align-self: stretch;
   }
 
@@ -633,7 +660,7 @@
     background: #727272;
   }
 
-  .totalreadingtime2h23m_span_01 {
+  .totalreadingtime_span_03 {
     color: #727272;
     font-size: 20px;
     font-family: Quicksand;
@@ -642,7 +669,7 @@
     word-wrap: break-word;
   }
 
-  .totalreadingtime2h23m_span_02 {
+  .totalreadingtime_span_04 {
     color: #141414;
     font-size: 20px;
     font-family: Quicksand;
@@ -651,7 +678,7 @@
     word-wrap: break-word;
   }
 
-  .total-reading-time-2h-23m {
+  .total-reading-time_01 {
     text-align: center;
   }
 
@@ -664,7 +691,7 @@
     background: #727272;
   }
 
-  .averagestars235_span_01 {
+  .averagestars_span_01 {
     color: #727272;
     font-size: 20px;
     font-family: Quicksand;
@@ -673,7 +700,7 @@
     word-wrap: break-word;
   }
 
-  .averagestars235_span_02 {
+  .averagestars_span_02 {
     color: #141414;
     font-size: 20px;
     font-family: Quicksand;
@@ -682,7 +709,7 @@
     word-wrap: break-word;
   }
 
-  .average-stars-235 {
+  .average-stars {
     text-align: center;
   }
 
@@ -695,7 +722,7 @@
     background: #727272;
   }
 
-  .averagehints12perscene_span_01 {
+  .averagehints_span_01 {
     color: #727272;
     font-size: 20px;
     font-family: Quicksand;
@@ -704,7 +731,7 @@
     word-wrap: break-word;
   }
 
-  .averagehints12perscene_span_02 {
+  .averagehints_span_02 {
     color: #141414;
     font-size: 20px;
     font-family: Quicksand;
@@ -713,7 +740,7 @@
     word-wrap: break-word;
   }
 
-  .average-hints-12-per-scene {
+  .average-hints {
     text-align: center;
   }
 

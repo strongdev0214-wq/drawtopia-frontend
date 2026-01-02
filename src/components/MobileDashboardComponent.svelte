@@ -69,6 +69,89 @@
   let storiesError = "";
   let giftsError = "";
 
+  // Reading statistics
+  let adventureStoriesCount: number = 0;
+  let searchStoriesCount: number = 0;
+  let adventureReadingTime: number = 0; // Total reading time in seconds
+  let searchReadingTime: number = 0; // Total reading time in seconds
+  let audioListenedCount: number = 0;
+  let averageStars: number = 0;
+  let averageHints: number = 0;
+
+  // Calculate reading statistics whenever rawStories changes
+  $: {
+    const adventureStories = rawStories.filter(story => {
+      const storyType = (story.story_type || "story").toLowerCase();
+      return storyType === "story";
+    });
+    
+    const searchStories = rawStories.filter(story => {
+      const storyType = (story.story_type || "story").toLowerCase();
+      return storyType === "search";
+    });
+    
+    // Count stories
+    adventureStoriesCount = adventureStories.length;
+    searchStoriesCount = searchStories.length;
+    
+    // Calculate total reading times
+    adventureReadingTime = adventureStories.reduce((total, story) => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        const readingTime = story.reading_state.reading_time || 0;
+        return total + readingTime;
+      }
+      return total;
+    }, 0);
+    
+    searchReadingTime = searchStories.reduce((total, story) => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        const readingTime = story.reading_state.reading_time || 0;
+        return total + readingTime;
+      }
+      return total;
+    }, 0);
+    
+    // Count adventure stories where audio has been listened
+    audioListenedCount = adventureStories.filter(story => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        return story.reading_state.audio_listened === true;
+      }
+      return false;
+    }).length;
+    
+    // Calculate average stars for interactive search stories
+    const searchStoriesWithStars = searchStories.filter(story => 
+      story.reading_state && 
+      typeof story.reading_state === 'object' && 
+      typeof story.reading_state.avg_star === 'number'
+    );
+    
+    if (searchStoriesWithStars.length > 0) {
+      const totalStars = searchStoriesWithStars.reduce((sum, story) => {
+        return sum + (story.reading_state.avg_star || 0);
+      }, 0);
+      averageStars = totalStars / searchStoriesWithStars.length;
+    } else {
+      averageStars = 0;
+    }
+    
+    // Calculate average hints for interactive search stories
+    const searchStoriesWithHints = searchStories.filter(story => 
+      story.reading_state && 
+      typeof story.reading_state === 'object' && 
+      typeof story.reading_state.avg_hint === 'number'
+    );
+    
+    if (searchStoriesWithHints.length > 0) {
+      const totalHints = searchStoriesWithHints.reduce((sum, story) => {
+        return sum + (story.reading_state.avg_hint || 0);
+      }, 0);
+      averageHints = totalHints / searchStoriesWithHints.length;
+    } else {
+      averageHints = 0;
+    }
+  }
+
   // Filter states for dashboard dropdowns
   let selectedFormat: string = "all";
   let selectedChild: string = "all";
@@ -191,6 +274,7 @@
         stories = storiesData
           .map(
             (story: Story & { child_profiles?: any, user_name?: string }, index: number) => ({
+              uid: story.uid,
               id: story.id || `temp_story_${index}_${Date.now()}`,
               title: story.story_title || `${story.character_name}'s Adventure`,
               author: story.child_profiles?.first_name || "Unknown",
@@ -213,6 +297,7 @@
               format: (story.adventure_type as string) === 'interactive_search' ? 'interactive' : 'story',
               adventure_type: story.adventure_type,
               child_profile_id: story.child_profile_id,
+              story_type: story.story_type,
             }),
           )
           .filter((story) => story.id);
@@ -313,13 +398,14 @@
           status: gift.status === 'completed' ? 'completed' : 'pending',
           giftFrom: gift.relationship,
           occasion: gift.occasion,
-          sendTo: gift.delivery_email || "Unknown",
+          send_to: gift.delivery_email || "Unknown",
           sentDate: formatDate(gift.created_at),
           deliveryDate: formatDate(gift.delivery_time),
           expectedDelivery: gift.delivery_time
             ? new Date(gift.delivery_time).toLocaleDateString("en-GB")
             : "Unknown",
-          createdAt: gift.created_at ? new Date(gift.created_at) : new Date(),
+          created_at: gift.created_at ? new Date(gift.created_at) : new Date(),
+          notification_sent: gift.notification_sent
         }));
       } else {
         giftsError = result.error || "Failed to fetch gifts";
@@ -530,6 +616,13 @@
       {filteredStories}
       {fetchStories}
       {fetchChildProfiles}
+      {adventureStoriesCount}
+      {searchStoriesCount}
+      {adventureReadingTime}
+      {searchReadingTime}
+      {audioListenedCount}
+      {averageStars}
+      {averageHints}
       on:characterPreview={handleCharacterPreview}
     />
   {/if}
@@ -709,6 +802,7 @@
     padding-top: 24px;
     padding-left: 16px;
     padding-right: 16px;
+    padding-bottom: 16px;
     background: white;
     overflow: hidden;
     flex-direction: column;

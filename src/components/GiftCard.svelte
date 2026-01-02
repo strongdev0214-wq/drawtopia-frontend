@@ -2,23 +2,17 @@
   import { createEventDispatcher } from "svelte";
   import archive from "../assets/Archive.svg";
   import arrowsClockwise from "../assets/ArrowsClockwise.svg";
-  import Archieve from "../assets/Archive.svg";
   import blueEye from "../assets/BlueEye.svg";
   import heart from "../assets/Heart.svg";
-
+  import checkmark from "../assets/Check.svg";
   const dispatch = createEventDispatcher();
 
   export let gift: any;
-
+  
   // Helper functions to safely get gift data with fallbacks
-  $: sendTo = gift?.sendTo || gift?.delivery_email || "Unknown";
-  $: sentDate = gift?.sentDate || (gift?.created_at ? new Date(gift.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown");
-  $: deliveryDate = gift?.deliveryDate || (gift?.delivery_time ? (() => {
-    const date = new Date(gift.delivery_time);
-    const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-    return `${dateStr} at ${timeStr}`;
-  })() : "Unknown");
+  $: sendTo = gift?.send_to || "Unknown";
+  $: sentDate = gift?.created_at ? new Date(gift.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown";
+  $: deliveryDate = gift?.expectedDelivery || "Unknown";
   $: age = gift?.age || (gift?.ageGroup ? (() => {
     const match = gift.ageGroup.match(/(\d+)-(\d+)/);
     if (match) {
@@ -80,10 +74,10 @@
       </div>
     </div>
 
-    <div class="frame-1410103869" class:completed={gift.status === 'completed'}>
+    <div class="frame-1410103869" class:completed={gift.notification_sent === true}>
       <div class="sub-menu">
         <div class="frame-2147227625">
-          {#if gift.status === 'pending'}
+          {#if gift.notification_sent === false}
             <div class="archive">
               <img src={archive} alt="Archive" />
             </div>
@@ -94,8 +88,7 @@
             </div>
           {:else}
             <div class="check">
-              
-                <img src={Archieve} alt="Archieve" />
+                <img src={checkmark} alt="Checkmark" />
             </div>
             <div class="book-created-delivered-oct-20">
               <span class="bookcreateddeliveredoct20_span">
@@ -113,7 +106,7 @@
 
   <div class="frame-1410104159">
     <div class="frame-1410104157">
-      {#if gift.status === 'pending'}
+      {#if gift.notification_sent === false}
         <div 
           class="button"
           on:click={handleResendLink}
@@ -447,6 +440,10 @@
     height: 16px;
     position: relative;
     overflow: hidden;
+  }
+
+  .frame-1410103869.completed .check img {
+    filter: brightness(0) saturate(100%) invert(40%) sepia(26%) saturate(1547%) hue-rotate(124deg) brightness(91%) contrast(88%);
   }
 
   .eye_01 {

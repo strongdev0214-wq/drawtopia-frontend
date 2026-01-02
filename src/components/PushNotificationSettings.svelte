@@ -26,9 +26,16 @@
     supported = isPushNotificationSupported();
     if (supported) {
       permission = getNotificationPermissionStatus();
-      subscribed = await isSubscribedToPushNotifications();
-      if (subscribed) {
-        subscriptions = await getUserPushSubscriptions();
+      try {
+        subscribed = await isSubscribedToPushNotifications();
+        if (subscribed) {
+          subscriptions = await getUserPushSubscriptions();
+        }
+      } catch (err) {
+        console.error('Error checking subscription status:', err);
+        subscribed = false;
+        subscriptions = [];
+        // Don't show error on mount - only show when user tries to interact
       }
     }
   });
@@ -154,16 +161,22 @@
 
     <div class="actions">
       {#if subscribed}
-        <OutlineBtn on:click={handleUnsubscribe} disabled={loading}>
-          {loading ? 'Processing...' : 'Disable Notifications'}
-        </OutlineBtn>
+        <OutlineBtn 
+          onClick={handleUnsubscribe} 
+          isLoading={loading}
+          text="Disable Notifications"
+          spinner_name="Processing..."
+        />
         <button class="test-btn" on:click={sendTestNotification}>
           Send Test Notification
         </button>
       {:else}
-        <PrimaryBtn on:click={handleSubscribe} disabled={loading}>
-          {loading ? 'Enabling...' : 'Enable Notifications'}
-        </PrimaryBtn>
+        <PrimaryBtn 
+          onClick={handleSubscribe} 
+          isLoading={loading}
+          text="Enable Notifications"
+          spinner_name="Enabling..."
+        />
       {/if}
     </div>
 

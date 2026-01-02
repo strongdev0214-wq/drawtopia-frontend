@@ -71,6 +71,15 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   let characterBooks: any[] = [];
   let subscriptionStatus: string = "Premium Plan";
   
+  // Story counts and reading times from HomeLibraryView
+  let adventureStoriesCount: number = 0;
+  let searchStoriesCount: number = 0;
+  let adventureReadingTime: number = 0; // Total reading time in seconds
+  let searchReadingTime: number = 0; // Total reading time in seconds
+  let audioListenedCount: number = 0; // Count of stories with audio listened
+  let averageStars: number = 0; // Average stars across interactive search stories
+  let averageHints: number = 0; // Average hints across interactive search stories
+  
   // Responsive detection
   let isMobile = false;
   
@@ -138,6 +147,22 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   const toggleMobileMenu = () => {
     showMobileMenu = !showMobileMenu;
   };
+
+  // Function to format seconds into "h m s" format
+  function formatReadingTime(seconds: number): string {
+    if (seconds === 0) return "0 s";
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} h`);
+    if (minutes > 0) parts.push(`${minutes} m`);
+    if (secs > 0 || parts.length === 0) parts.push(`${secs} s`);
+    
+    return parts.join(' ');
+  }
 
   // Function to get a random story theme
   const getRandomStoryTheme = () => {
@@ -431,6 +456,9 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
             ? new Date(gift.delivery_time).toLocaleDateString("en-GB")
             : "Unknown",
           createdAt: gift.created_at ? new Date(gift.created_at) : new Date(),
+          notification_sent: gift.notification_sent,
+          send_to: gift.delivery_email,
+          created_at: gift.created_at
         }));
       } else {
         giftsError = result.error || "Failed to fetch gifts";
@@ -842,7 +870,19 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     </div>
     <div class="sidebar">
       {#if activeMenu === "home"}
-        <HomeLibraryView {handleAddChildren} {handleCharacterPreview} {handleNewStory} />
+        <HomeLibraryView 
+          {handleAddChildren} 
+          {handleCharacterPreview} 
+          {handleNewStory} 
+          bind:libraryView 
+          bind:adventureStoriesCount
+          bind:searchStoriesCount
+          bind:adventureReadingTime
+          bind:searchReadingTime
+          bind:audioListenedCount
+          bind:averageStars
+          bind:averageHints
+        />
       {/if}
         
       <!-- Reading Stats Component -->
@@ -873,7 +913,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
                     <span class="reading-stats-card-label-text">Story Adventure</span>
                   </div>
                   <div class="reading-stats-card-value">
-                    <span class="reading-stats-card-value-text">8 Books</span>
+                    <span class="reading-stats-card-value-text">{adventureStoriesCount} {adventureStoriesCount === 1 ? 'Book' : 'Books'}</span>
                   </div>
                 </div>
               </div>
@@ -885,7 +925,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               </div>
               <div class="reading-stats-stat-text">
                 <span class="reading-stats-stat-label">Total reading time: </span>
-                <span class="reading-stats-stat-value">1h 23m </span>
+                <span class="reading-stats-stat-value">{formatReadingTime(adventureReadingTime)}</span>
               </div>
             </div>
             <div class="reading-stats-stat-item">
@@ -894,7 +934,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               </div>
               <div class="reading-stats-stat-text">
                 <span class="reading-stats-stat-label">Audio listened: </span>
-                <span class="reading-stats-stat-value">4 Books</span>
+                <span class="reading-stats-stat-value">{audioListenedCount} {audioListenedCount === 1 ? 'Book' : 'Books'}</span>
               </div>
             </div>
           </div>
@@ -912,7 +952,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
                     <span class="reading-stats-card-label-text">Interactive Search</span>
                   </div>
                   <div class="reading-stats-card-value">
-                    <span class="reading-stats-card-value-text">3 Books</span>
+                    <span class="reading-stats-card-value-text">{searchStoriesCount} {searchStoriesCount === 1 ? 'Book' : 'Books'}</span>
                   </div>
                 </div>
               </div>
@@ -924,7 +964,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               </div>
               <div class="reading-stats-stat-text">
                 <span class="reading-stats-stat-label">Total reading time: </span>
-                <span class="reading-stats-stat-value">2h 23m </span>
+                <span class="reading-stats-stat-value">{formatReadingTime(searchReadingTime)}</span>
               </div>
             </div>
             <div class="reading-stats-stat-item">
@@ -933,7 +973,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               </div>
               <div class="reading-stats-stat-text">
                 <span class="reading-stats-stat-label">Average stars : </span>
-                <span class="reading-stats-stat-value">2,3/5</span>
+                <span class="reading-stats-stat-value">{averageStars > 0 ? averageStars.toFixed(1) : '0'}/5</span>
               </div>
             </div>
             <div class="reading-stats-stat-item">
@@ -942,7 +982,7 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               </div>
               <div class="reading-stats-stat-text">
                 <span class="reading-stats-stat-label">Average Hints : </span>
-                <span class="reading-stats-stat-value">1.2 Per Scene</span>
+                <span class="reading-stats-stat-value">{averageHints > 0 ? averageHints.toFixed(1) : '0'} Per Scene</span>
               </div>
             </div>
           </div>

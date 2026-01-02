@@ -1,4 +1,5 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
   import xcom from "../assets/Xcom.svg";
   import facebook from "../assets/Facebook.svg";
   import instagram from "../assets/Instagram.svg";
@@ -8,9 +9,21 @@
   import whatsapp from "../assets/WhatsappLogo.svg";
   import x from "../assets/X.svg";
   import link from "../assets/Link.svg";
+
+  const dispatch = createEventDispatcher();
+
+  function handleClose() {
+    dispatch('close');
+  }
+
+  function handleOverlayClick(event) {
+    if (event.target === event.currentTarget) {
+      handleClose();
+    }
+  }
 </script>
 
-<div class="modal-overlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" role="dialog" aria-modal="true" on:click={handleOverlayClick}>
   <div class="modal-box">
     <div class="pop-up">
       <div class="frame-1410103845">
@@ -18,7 +31,15 @@
           <div class="logo-text-full">
             <div class="logo-img"></div>
           </div>
-          <img class="x" src={x} alt="x" />
+          <img 
+            class="x" 
+            src={x} 
+            alt="x" 
+            on:click={handleClose}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClose()}
+            role="button"
+            tabindex="0"
+          />
         </div>
         <div class="stroke"></div>
       </div>
@@ -61,7 +82,13 @@
       </div>
       <div class="frame-1410103905">
         <div class="frame-1410103841">
-          <div class="button">
+          <div 
+            class="button"
+            on:click={handleClose}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClose()}
+            role="button"
+            tabindex="0"
+          >
             <div class="cancel"><span class="cancel_span">Cancel</span></div>
           </div>
           <div class="button_01">
@@ -180,6 +207,19 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .button:hover {
+    background: #f5f5f5;
+    transform: translateY(-1px);
+    box-shadow: 0px 6px 8px rgba(98.89, 98.89, 98.89, 0.3);
+  }
+
+  .button:active {
+    transform: translateY(0);
+    box-shadow: 0px 2px 4px rgba(98.89, 98.89, 98.89, 0.2);
   }
 
   .logo-text-full {
@@ -193,6 +233,18 @@
     height: 24px;
     position: relative;
     overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .x:hover {
+    transform: scale(1.1);
+    opacity: 0.7;
+  }
+
+  .x:active {
+    transform: scale(0.95);
+    opacity: 0.5;
   }
 
   .frame-1410103839 {
@@ -213,6 +265,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_01 {
@@ -224,6 +288,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_01:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_01:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_02 {
@@ -235,6 +311,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_02:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_02:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_03 {
@@ -246,6 +334,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_03:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_03:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_04 {
@@ -257,6 +357,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_04:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_04:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_05 {
@@ -268,6 +380,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_05:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_05:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .notification_06 {
@@ -279,6 +403,18 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .notification_06:hover {
+    background: #d6ebff;
+    transform: scale(1.05);
+  }
+
+  .notification_06:active {
+    transform: scale(0.98);
+    background: #c2e0ff;
   }
 
   .button_01 {
@@ -293,6 +429,20 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .button_01:hover {
+    background: #3a7ae4;
+    transform: translateY(-1px);
+    box-shadow: 0px 4px 8px rgba(67, 139, 255, 0.4);
+  }
+
+  .button_01:active {
+    background: #2e6bc7;
+    transform: translateY(0);
+    box-shadow: 0px 2px 4px rgba(67, 139, 255, 0.3);
   }
 
   .frame-1410103845 {

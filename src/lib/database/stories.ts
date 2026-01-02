@@ -6,6 +6,7 @@ import { supabase } from '../supabase';
 
 export interface Story {
   id?: string;
+  uid?: string; // Unique identifier
   created_at?: string;
   user_id?: string; // User ID of the story creator/owner
   child_profile_id: string;
@@ -25,7 +26,22 @@ export interface Story {
   audio_urls?: (string | null)[]; // Array of audio URLs (one per page, null if failed)
   status?: 'generating' | 'completed' | 'failed';
   story_type?: string; // Type of story: adventure story book or search adventure
+  reading_state?: ReadingState; // Reading statistics
 }
+
+// Reading state interfaces
+export interface StoryAdventureReadingState {
+  reading_time: number; // Time in seconds
+  audio_listened: boolean;
+}
+
+export interface InteractiveSearchReadingState {
+  reading_time: number; // Time in seconds
+  avg_star: number;
+  avg_hint: number;
+}
+
+export type ReadingState = StoryAdventureReadingState | InteractiveSearchReadingState;
 
 export interface DatabaseResult {
   success: boolean;
@@ -133,6 +149,75 @@ export async function updateStory(storyId: string, updates: Partial<Story>): Pro
     return {
       success: false,
       error: 'An unexpected error occurred while updating the story'
+    };
+  }
+}
+
+/**
+ * Update reading state for a story by uid
+ * @param storyUid - The story UID
+ * @param readingState - The reading state to update
+ * @returns Promise with operation result
+ */
+export async function updateReadingState(storyUid: string, readingState: ReadingState): Promise<DatabaseResult> {
+  try {
+    // First, get the current reading_state to merge with new data
+    const { data: existingStory, error: fetchError } = await supabase
+      .from('stories')
+      .select('reading_state')
+      .eq('uid', storyUid)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error('Error fetching existing reading state:', fetchError);
+    }
+
+    // Merge existing reading state with new data
+    // IMPORTANT: Sum the reading_time instead of replacing it
+    let mergedState: any;
+    
+    if (existingStory?.reading_state && typeof existingStory.reading_state === 'object') {
+      const existingReadingTime = existingStory.reading_state.reading_time || 0;
+      const newReadingTime = readingState.reading_time || 0;
+      
+      // Merge all fields and sum the reading_time
+      mergedState = {
+        ...existingStory.reading_state,
+        ...readingState,
+        reading_time: existingReadingTime + newReadingTime // Sum instead of replace
+      };
+      
+      console.log(`[updateReadingState] Summing reading time: ${existingReadingTime} + ${newReadingTime} = ${mergedState.reading_time}`);
+    } else {
+      // No existing state, use the new state as-is
+      mergedState = readingState;
+    }
+
+    const { data, error } = await supabase
+      .from('stories')
+      .update({ reading_state: mergedState })
+      .eq('uid', storyUid)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error updating reading state:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    console.error('Unexpected error updating reading state:', error);
+    return {
+      success: false,
+      error: 'An unexpected error occurred while updating reading state'
     };
   }
 }

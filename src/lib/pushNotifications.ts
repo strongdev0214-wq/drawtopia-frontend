@@ -10,6 +10,12 @@ import { getCurrentUser } from './auth';
 // Generate with: npx web-push generate-vapid-keys
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
+// Check if VAPID key is configured
+if (!VAPID_PUBLIC_KEY) {
+  console.warn('⚠️ VITE_VAPID_PUBLIC_KEY not configured. Push notifications will not work.');
+  console.warn('📖 See PUSH_NOTIFICATIONS_SETUP.md for setup instructions.');
+}
+
 export interface PushSubscriptionData {
   endpoint: string;
   p256dh: string;
@@ -114,6 +120,11 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     return null;
   }
 
+  // Check if VAPID key is configured
+  if (!VAPID_PUBLIC_KEY) {
+    throw new Error('VAPID public key not configured. Please set VITE_VAPID_PUBLIC_KEY in your .env file. See PUSH_NOTIFICATIONS_SETUP.md for instructions.');
+  }
+
   try {
     // Register service worker
     const registration = await registerServiceWorker();
@@ -141,7 +152,10 @@ export async function subscribeToPushNotifications(): Promise<PushSubscription |
     return subscription;
   } catch (error) {
     console.error('Error subscribing to push notifications:', error);
-    throw error;
+    if (error instanceof Error && error.message.includes('VAPID')) {
+      throw error;
+    }
+    throw new Error('Failed to subscribe to notifications. Please check browser console for details.');
   }
 }
 

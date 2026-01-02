@@ -1,13 +1,225 @@
-<script>
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import x from "../assets/X.svg";
   import qrcode from "../assets/qr.png";
   import download from "../assets/DownloadSimple.svg";
   import caretright from "../assets/CaretDown.svg";
   import video from "../assets/Video.svg";
   import trash from "../assets/Trash.svg";
+
+  const dispatch = createEventDispatcher();
+
+  // Props
+  export let storyId: string = "";
+  export let storyTitle: string = "Story";
+
+  let isDownloadingPDF = false;
+  let isDeletingStory = false;
+
+  function handleClose() {
+    dispatch('close');
+  }
+
+  function handleOverlayClick(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      handleClose();
+    }
+  }
+
+  // Handle download PDF button click
+  const handleDownloadPDF = async (event?: MouseEvent) => {
+    // Prevent event propagation
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    // Prevent multiple simultaneous downloads
+    if (isDownloadingPDF) {
+      console.log('[StoryInfoModal] PDF download already in progress...');
+      return;
+    }
+    
+    if (!storyId) {
+      console.error("[StoryInfoModal] Story ID not provided");
+      alert("Unable to download story. Story ID is missing.");
+      return;
+    }
+    
+    isDownloadingPDF = true;
+    
+    try {
+      console.log(`[StoryInfoModal] Requesting PDF generation for story ID: ${storyId}`);
+      
+      // Call backend API to generate PDF
+      const apiUrl = `https://drawtopia-backend.vercel.app/api/books/${storyId}/generate-pdf`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log(`[StoryInfoModal] Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[StoryInfoModal] Server returned error: ${errorText}`);
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('[StoryInfoModal] Server response:', result);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'PDF generation failed');
+      }
+      
+      if (!result.pdf_url) {
+        throw new Error('PDF URL not returned from server');
+      }
+
+      // Download the PDF file
+      const pdfUrl = result.pdf_url;
+      console.log(`[StoryInfoModal] PDF URL received: ${pdfUrl}`);
+      
+      // Try to download the PDF
+      try {
+        // Method 1: Direct download via anchor tag
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `${storyTitle.replace(/[^a-z0-9]/gi, '_')}_${storyId}.pdf`;
+        link.target = '_blank'; // Open in new tab as fallback
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        
+        console.log('[StoryInfoModal] PDF download initiated successfully');
+      } catch (downloadError) {
+        console.warn('[StoryInfoModal] Direct download failed, trying alternative method:', downloadError);
+        
+        // Method 2: Fetch and download as blob (fallback)
+        try {
+          const pdfResponse = await fetch(pdfUrl);
+          if (!pdfResponse.ok) {
+            throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
+          }
+          
+          const blob = await pdfResponse.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${storyTitle.replace(/[^a-z0-9]/gi, '_')}_${storyId}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Clean up
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+          }, 100);
+          
+          console.log('[StoryInfoModal] PDF downloaded via blob method');
+        } catch (blobError) {
+          console.error('[StoryInfoModal] Blob download also failed:', blobError);
+          // Last resort: open in new window
+          window.open(pdfUrl, '_blank');
+        }
+      }
+      
+    } catch (error) {
+      console.error('[StoryInfoModal] Error downloading PDF:', error);
+      alert(`Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      isDownloadingPDF = false;
+    }
+  };
+
+  // Handle delete story button click
+  const handleDeleteStory = async (event?: MouseEvent) => {
+    // Prevent event propagation
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+    
+    // Prevent multiple simultaneous deletions
+    if (isDeletingStory) {
+      console.log('[StoryInfoModal] Story deletion already in progress...');
+      return;
+    }
+    
+    if (!storyId) {
+      console.error("[StoryInfoModal] Story ID not provided");
+      alert("Unable to delete story. Story ID is missing.");
+      return;
+    }
+    
+    // Confirmation dialog
+    const confirmDelete = confirm(
+      `Are you sure you want to delete "${storyTitle}"?\n\nThis action cannot be undone.`
+    );
+    
+    if (!confirmDelete) {
+      return; // User cancelled
+    }
+    
+    isDeletingStory = true;
+    
+    try {
+      console.log(`[StoryInfoModal] Requesting deletion for story ID: ${storyId}`);
+      
+      // Call backend API to delete story
+      const apiUrl = `https://drawtopia-backend.vercel.app/api/books/${storyId}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log(`[StoryInfoModal] Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[StoryInfoModal] Server returned error: ${errorText}`);
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('[StoryInfoModal] Server response:', result);
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Story deletion failed');
+      }
+      
+      // Success! Show confirmation and dispatch event
+      alert(`Story "${storyTitle}" has been deleted successfully.`);
+      
+      // Dispatch delete event so parent can handle navigation
+      dispatch('delete', { storyId });
+      
+      // Close the modal
+      handleClose();
+      
+    } catch (error) {
+      console.error('[StoryInfoModal] Error deleting story:', error);
+      alert(`Failed to delete story: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      isDeletingStory = false;
+    }
+  };
 </script>
 
-<div class="modal-overlay" role="dialog" aria-modal="true">
+<div class="modal-overlay" role="dialog" aria-modal="true" on:click={handleOverlayClick}>
   <div class="modal-box">
     <div class="information-helper-text">
       <div class="frame-1410103845">
@@ -15,7 +227,15 @@
           <div class="logo-text-full">
             <div class="logo-img"></div>
           </div>
-          <img src={x} alt="x" />
+          <img 
+            class="x" 
+            src={x} 
+            alt="x" 
+            on:click={handleClose}
+            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClose()}
+            role="button"
+            tabindex="0"
+          />
         </div>
         <div class="stroke"></div>
       </div>
@@ -24,13 +244,22 @@
       </div>
       <img class="image-7" src={qrcode} alt="info_sotry" />
       <div class="checklist-container">
-        <div class="checklist">
+        <div 
+          class="checklist"
+          class:downloading={isDownloadingPDF}
+          role="button"
+          tabindex="0"
+          on:click={handleDownloadPDF}
+          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleDownloadPDF()}
+        >
           <div class="frame-1410104186">
             <div class="check">
               <img src={download} alt="download" />
             </div>
             <div class="download-story">
-              <span class="downloadstory_span">Download Story</span>
+              <span class="downloadstory_span">
+                {isDownloadingPDF ? 'Downloading...' : 'Download Story'}
+              </span>
             </div>
           </div>
           <div class="caretright">
@@ -50,13 +279,22 @@
             <img src={caretright} alt="caretright" />
           </div>
         </div>
-        <div class="checklist_02">
+        <div 
+          class="checklist_02"
+          class:deleting={isDeletingStory}
+          role="button"
+          tabindex="0"
+          on:click={handleDeleteStory}
+          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleDeleteStory()}
+        >
           <div class="frame-1410104187">
             <div class="check_02">
               <img src={trash} alt="trash" />
             </div>
             <div class="delete-story">
-              <span class="deletestory_span">Delete Story</span>
+              <span class="deletestory_span">
+                {isDeletingStory ? 'Deleting...' : 'Delete Story'}
+              </span>
             </div>
           </div>
           <div class="caretright">
@@ -162,6 +400,23 @@
     position: relative;
   }
 
+  .x {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .x:hover {
+    transform: scale(1.1);
+    opacity: 0.7;
+  }
+
+  .x:active {
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+
   .caretright {
     width: 24px;
     height: 24px;
@@ -254,6 +509,24 @@
     justify-content: space-between;
     align-items: center;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .checklist:hover {
+    background: #f5f9ff;
+    outline: 1px #438bff solid;
+    transform: translateX(4px);
+  }
+
+  .checklist:active {
+    background: #eef6ff;
+    transform: translateX(2px);
+  }
+
+  .checklist.downloading {
+    opacity: 0.6;
+    pointer-events: none;
   }
 
   .checklist_01 {
@@ -268,6 +541,19 @@
     justify-content: space-between;
     align-items: center;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .checklist_01:hover {
+    background: #f5f9ff;
+    outline: 1px #438bff solid;
+    transform: translateX(4px);
+  }
+
+  .checklist_01:active {
+    background: #eef6ff;
+    transform: translateX(2px);
   }
 
   .checklist_02 {
@@ -282,6 +568,24 @@
     justify-content: space-between;
     align-items: center;
     display: inline-flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .checklist_02:hover {
+    background: #fff5f7;
+    outline: 1px #df1c41 solid;
+    transform: translateX(4px);
+  }
+
+  .checklist_02:active {
+    background: #ffe5ea;
+    transform: translateX(2px);
+  }
+
+  .checklist_02.deleting {
+    opacity: 0.6;
+    pointer-events: none;
   }
 
   .checklist-container {

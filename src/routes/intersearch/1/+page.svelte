@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto } from "$app/navigation";
+  import { goto, beforeNavigate } from "$app/navigation";
   import { browser } from "$app/environment";
   import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
@@ -18,9 +18,11 @@
   import zoomIcon from '../../../assets/zoomIcon.svg';
   import arrowleft from '../../../assets/ArrowLeft.svg';
   import { enhance } from "$app/forms";
+  import ShareStoryModal from "../../../components/ShareStoryModal.svelte";
+  import StoryInfoModal from "../../../components/StoryInfoModal.svelte";
   import { env } from '../../../lib/env';
   import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
-  import { createStory, getStoryById } from '../../../lib/database/stories';
+  import { createStory, getStoryById, updateReadingState } from '../../../lib/database/stories';
   import { storyCreation } from '../../../lib/stores/storyCreation';
   import { user } from '../../../lib/stores/auth';
   import { get } from 'svelte/store';
@@ -43,6 +45,9 @@
   let isLoading = true;
   let loadError = "";
   let storyId: string | null = null;
+  
+  let showStoryInfoModal = false;
+  let showShareStoryModal = false;
 
   // Drag selection state
   let imageWrapperRef: HTMLDivElement | null = null;
@@ -61,6 +66,14 @@
   let hintsUsed = 0;
   let hintsLeft = 3;
   let stars = 0;
+
+  // Reading time tracking
+  let readingStartTime: number = 0; // Timestamp when reading started
+  let totalReadingTime: number = 0; // Total time spent reading in seconds
+  let readingTimerInterval: number | null = null; // Interval ID for the timer
+  let totalHintsUsed: number = 0; // Track total hints used across all scenes
+  let totalStarsEarned: number = 0; // Track total stars earned
+  let scenesCompleted: number = 0; // Track number of scenes completed
 
   // Scene titles based on world
   const sceneTitles: { [key: string]: string[] } = {
@@ -445,6 +458,67 @@
     }
   }
 
+  // Start reading timer
+  function startReadingTimer() {
+    if (!browser) return;
+    
+    readingStartTime = Date.now();
+    console.log('[intersearch-timer] Started reading timer');
+    
+    // Update every second
+    readingTimerInterval = window.setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - readingStartTime) / 1000);
+      totalReadingTime = elapsedSeconds;
+    }, 1000);
+  }
+  
+  // Stop reading timer and save to database
+  async function stopReadingTimerAndSave() {
+    if (!browser || !storyId) return;
+    
+    // Clear interval
+    if (readingTimerInterval !== null) {
+      clearInterval(readingTimerInterval);
+      readingTimerInterval = null;
+    }
+    
+    // Calculate final reading time
+    if (readingStartTime > 0) {
+      const elapsedSeconds = Math.floor((Date.now() - readingStartTime) / 1000);
+      totalReadingTime = elapsedSeconds;
+    }
+    
+    // Only save if user spent at least 1 second
+    if (totalReadingTime < 1) {
+      console.log('[intersearch-timer] Reading time too short, not saving');
+      return;
+    }
+    
+    console.log(`[intersearch-timer] Stopped. Total time: ${totalReadingTime} seconds`);
+    
+    // Calculate averages for interactive search
+    const avgHint = scenesCompleted > 0 ? totalHintsUsed / scenesCompleted : 0;
+    const avgStar = scenesCompleted > 0 ? totalStarsEarned / scenesCompleted : 0;
+    
+    // Prepare reading state for interactive search story
+    const readingState = {
+      reading_time: totalReadingTime,
+      avg_star: parseFloat(avgStar.toFixed(2)),
+      avg_hint: parseFloat(avgHint.toFixed(2))
+    };
+    
+    try {
+      const result = await updateReadingState(storyId, readingState);
+      if (result.success) {
+        console.log('[intersearch-timer] Successfully updated reading state:', readingState);
+      } else {
+        console.error('[intersearch-timer] Failed to update reading state:', result.error);
+      }
+    } catch (error) {
+      console.error('[intersearch-timer] Error updating reading state:', error);
+    }
+  }
+
   function nextScene() {
     if (currentSceneIndex < generatedImages.length - 1) {
       currentSceneIndex++;
@@ -575,6 +649,9 @@
           goto("/intersearch");
         }
       }
+      
+      // Start reading time tracker
+      startReadingTimer();
     }
   });
 
@@ -588,6 +665,13 @@
     if (croppedImageUrl) {
       URL.revokeObjectURL(croppedImageUrl);
     }
+    // Stop timer and save reading state
+    stopReadingTimerAndSave();
+  });
+  
+  // Save reading state before navigating away
+  beforeNavigate(() => {
+    stopReadingTimerAndSave();
   });
 
   function handleStartScene1() {
@@ -1085,6 +1169,12 @@
         
         calculatingSimilarity = false;
         showFoundModal = true;
+        
+        // Track stats for reading state
+        scenesCompleted++;
+        totalStarsEarned += stars;
+        totalHintsUsed += hintsUsed;
+        console.log(`[intersearch-timer] Scene completed. Stars: ${stars}, Hints: ${hintsUsed}, Total scenes: ${scenesCompleted}`);
       } else {
         calculatingSimilarity = false;
         if (!croppedBlobUrl) {
@@ -1151,10 +1241,18 @@
       <div class="back"><span class="back_span">Back</span></div>
     </div>
     <div class="frame-2147227650">
-      <button class="button_01" aria-label="More options">
+      <button 
+        class="button_01" 
+        aria-label="More options"
+        on:click={() => (showStoryInfoModal = true)}
+      >
         <img src={dotsThreeOutline} alt="More options">
       </button>
-      <button class="button_02" aria-label="Share">
+      <button 
+        class="button_02" 
+        aria-label="Share"
+        on:click={() => (showShareStoryModal = true)}
+      >
         <img src={shareIcon} alt="Share">
       </button>
     </div>
@@ -1170,10 +1268,18 @@
         </div>
       </div>
       <div class="preview-header-actions">
-        <button class="preview-header-btn" aria-label="Share">
+        <button 
+          class="preview-header-btn" 
+          aria-label="Share"
+          on:click={() => (showShareStoryModal = true)}
+        >
           <img src={shareIcon} alt="Share" />
         </button>
-        <button class="preview-header-btn" aria-label="More options">
+        <button 
+          class="preview-header-btn" 
+          aria-label="More options"
+          on:click={() => (showStoryInfoModal = true)}
+        >
           <img src={dotsThreeOutline} alt="More" />
         </button>
       </div>
@@ -1480,6 +1586,29 @@
     </div>
   </div>
 {/if}
+
+{#if showStoryInfoModal}
+  <StoryInfoModal 
+    storyId={storyId || ""}
+    storyTitle={storyTitle || "Your Search Adventure"}
+    on:close={() => showStoryInfoModal = false}
+    on:delete={(e) => {
+      showStoryInfoModal = false;
+      goto('/dashboard');
+    }}
+  />
+{/if}
+
+{#if showShareStoryModal}
+  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+{/if}
+
+<svelte:window on:keydown={(e) => {
+  if (e.key === 'Escape') {
+    showStoryInfoModal = false;
+    showShareStoryModal = false;
+  }
+}} />
 
 <style>
   .preview-outer {

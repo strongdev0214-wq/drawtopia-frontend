@@ -3,6 +3,7 @@
   import CharacterCard from "./CharacterCard.svelte";
   import ChildCard from "./ChildCard.svelte";
   import AdvancedSelect from "./AdvancedSelect.svelte";
+  import ShareStoryModal from "./ShareStoryModal.svelte";
   import plus from "../assets/Plus.svg";
   import usercircleplus from "../assets/UserCirclePlus.svg";
 
@@ -15,8 +16,8 @@
   export let handleAddChildren: () => void;
   export let handleCharacterPreview: (event: CustomEvent) => void;
   export let handleNewStory: (event: CustomEvent) => void;
+  export let libraryView: "all" | "characters" | "children" = "all";
 
-  let libraryView: "all" | "characters" | "children" = "all";
   const setLibraryView = (v: "all" | "characters" | "children") =>
   (libraryView = v);
   
@@ -28,6 +29,7 @@
   let characters: any[] = [];
   let childProfiles: any[] = [];
   let loading: boolean = false;
+  let showShareStoryModal = false;
   let loadingCharacters: boolean = false;
   let charactersError: string = "";
 
@@ -101,6 +103,89 @@
       _uniqueKey: uniqueKey
     };
   });
+
+  // Calculate story counts by type (exported for parent component to use)
+  export let adventureStoriesCount: number = 0;
+  export let searchStoriesCount: number = 0;
+  export let adventureReadingTime: number = 0; // Total reading time in seconds
+  export let searchReadingTime: number = 0; // Total reading time in seconds
+  export let audioListenedCount: number = 0; // Count of adventure stories with audio listened
+  export let averageStars: number = 0; // Average stars across all interactive search stories
+  export let averageHints: number = 0; // Average hints across all interactive search stories
+
+  // Update story counts and reading times whenever allStories changes
+  $: {
+    const adventureStories = allStories.filter(story => {
+      const storyType = (story.story_type || "story").toLowerCase();
+      return storyType === "story";
+    });
+    
+    const searchStories = allStories.filter(story => {
+      const storyType = (story.story_type || "story").toLowerCase();
+      return storyType === "search";
+    });
+    
+    // Count stories
+    adventureStoriesCount = adventureStories.length;
+    searchStoriesCount = searchStories.length;
+    
+    // Calculate total reading times
+    adventureReadingTime = adventureStories.reduce((total, story) => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        const readingTime = story.reading_state.reading_time || 0;
+        return total + readingTime;
+      }
+      return total;
+    }, 0);
+    
+    searchReadingTime = searchStories.reduce((total, story) => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        const readingTime = story.reading_state.reading_time || 0;
+        return total + readingTime;
+      }
+      return total;
+    }, 0);
+    
+    // Count adventure stories where audio has been listened
+    audioListenedCount = adventureStories.filter(story => {
+      if (story.reading_state && typeof story.reading_state === 'object') {
+        return story.reading_state.audio_listened === true;
+      }
+      return false;
+    }).length;
+    
+    // Calculate average stars for interactive search stories
+    const searchStoriesWithStars = searchStories.filter(story => 
+      story.reading_state && 
+      typeof story.reading_state === 'object' && 
+      typeof story.reading_state.avg_star === 'number'
+    );
+    
+    if (searchStoriesWithStars.length > 0) {
+      const totalStars = searchStoriesWithStars.reduce((sum, story) => {
+        return sum + (story.reading_state.avg_star || 0);
+      }, 0);
+      averageStars = totalStars / searchStoriesWithStars.length;
+    } else {
+      averageStars = 0;
+    }
+    
+    // Calculate average hints for interactive search stories
+    const searchStoriesWithHints = searchStories.filter(story => 
+      story.reading_state && 
+      typeof story.reading_state === 'object' && 
+      typeof story.reading_state.avg_hint === 'number'
+    );
+    
+    if (searchStoriesWithHints.length > 0) {
+      const totalHints = searchStoriesWithHints.reduce((sum, story) => {
+        return sum + (story.reading_state.avg_hint || 0);
+      }, 0);
+      averageHints = totalHints / searchStoriesWithHints.length;
+    } else {
+      averageHints = 0;
+    }
+  }
 
   // Track current user ID for reactive statements
   let currentUserId: string = "";
@@ -201,6 +286,12 @@
   const handleViewBook = async (event: CustomEvent) => {
     const bookInfo = event.detail;
     console.log(bookInfo);
+  }
+
+  const handleShare = (event: CustomEvent) => {
+    const storyInfo = event.detail;
+    console.log('Share story:', storyInfo);
+    showShareStoryModal = true;
   }
   
   // const handleViewBook = async (event: CustomEvent) => {
@@ -493,7 +584,7 @@
           <div class="empty-message">No books found</div>
         {:else}
           {#each storiesWithKeys as story (story._uniqueKey)}
-            <BookCard item={story} on:viewBook={handleViewBook} />
+            <BookCard item={story} on:viewBook={handleViewBook} on:share={handleShare} />
           {/each}
         {/if}
       {:else if libraryView === "characters"}
@@ -538,6 +629,10 @@
     </div>
   </div>
 </div>
+
+{#if showShareStoryModal}
+  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+{/if}
 
 <style>
   .yourlibrary_span {
