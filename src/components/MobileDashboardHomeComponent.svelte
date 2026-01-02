@@ -479,15 +479,6 @@
     background: #ededed;
   }
 
-  .vector_26 {
-    width: 16.5px;
-    height: 19.5px;
-    left: 3.75px;
-    top: 2.25px;
-    position: absolute;
-    background: white;
-  }
-
   .ellipse-1415_05 {
     width: 248px;
     height: 114px;
@@ -534,15 +525,6 @@
     background: #ededed;
   }
 
-  .vector_27 {
-    width: 21px;
-    height: 18px;
-    left: 1.5px;
-    top: 4.5px;
-    position: absolute;
-    background: #727272;
-  }
-
   .totalreadingtime_span_01 {
     color: #727272;
     font-size: 20px;
@@ -565,15 +547,6 @@
     text-align: center;
   }
 
-  .vector_28 {
-    width: 19.5px;
-    height: 21px;
-    left: 2.25px;
-    top: 2.25px;
-    position: absolute;
-    background: #727272;
-  }
-
   .audiolistened_span_01 {
     color: #727272;
     font-size: 20px;
@@ -594,15 +567,6 @@
 
   .audio-listened {
     text-align: center;
-  }
-
-  .vector_29 {
-    width: 16.5px;
-    height: 19.5px;
-    left: 3.75px;
-    top: 2.25px;
-    position: absolute;
-    background: white;
   }
 
   .ellipse-1415_06 {
@@ -651,15 +615,6 @@
     background: #ededed;
   }
 
-  .vector_30 {
-    width: 21px;
-    height: 18px;
-    left: 1.5px;
-    top: 4.5px;
-    position: absolute;
-    background: #727272;
-  }
-
   .totalreadingtime_span_03 {
     color: #727272;
     font-size: 20px;
@@ -682,15 +637,6 @@
     text-align: center;
   }
 
-  .vector_31 {
-    width: 21px;
-    height: 20.25px;
-    left: 1.5px;
-    top: 1.5px;
-    position: absolute;
-    background: #727272;
-  }
-
   .averagestars_span_01 {
     color: #727272;
     font-size: 20px;
@@ -711,15 +657,6 @@
 
   .average-stars {
     text-align: center;
-  }
-
-  .vector_32 {
-    width: 21px;
-    height: 20.25px;
-    left: 1.5px;
-    top: 1.5px;
-    position: absolute;
-    background: #727272;
   }
 
   .averagehints_span_01 {
@@ -836,13 +773,6 @@
     overflow: hidden;
   }
 
-  .bookopen_01 {
-    width: 24px;
-    height: 24px;
-    position: relative;
-    overflow: hidden;
-  }
-
   .star {
     width: 24px;
     height: 24px;
@@ -942,17 +872,6 @@
     align-items: center;
     gap: 32px;
     display: inline-flex;
-  }
-
-  .frame-1410104158 {
-    align-self: stretch;
-    padding-left: 4px;
-    padding-right: 4px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 4px;
-    display: flex;
   }
 
   .frame-1410104092 {

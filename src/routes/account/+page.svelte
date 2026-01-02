@@ -1040,32 +1040,6 @@
     display: inline-flex;
 }
 
-.profile-picture-wrapper {
-    position: relative;
-    display: inline-block;
-}
-
-.edit-profile-picture-link {
-    margin-top: 4px;
-}
-
-.edit-link {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-}
-
-.edit-link:hover .editprofilepicture_span {
-    color: #438BFF;
-}
-
-.form-label-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
 .action-buttons {
     align-self: stretch;
     padding: 16px;
