@@ -94,6 +94,9 @@
       const environmentKey = environmentMapping[selectedWorld] || selectedWorld;
       const environmentCacheKey = `environmentImage_${selectedStyle}_${selectedEnhancement}_${environmentKey}`;
       
+      // Remove old cached environment image to force regeneration
+      sessionStorage.removeItem(environmentCacheKey);
+      
       // Check cache first
       let environmentImageUrl = sessionStorage.getItem(environmentCacheKey);
       
@@ -126,6 +129,11 @@
       
       const adventureKey = adventureMapping[selectedAdventure] || selectedAdventure;
       const adventureCacheKey = `adventureImage_${selectedWorld}_${selectedAdventure}`;
+      
+      // Remove old cached adventure image and story cover to force regeneration
+      sessionStorage.removeItem(adventureCacheKey);
+      sessionStorage.removeItem('storyCover');
+      sessionStorage.removeItem('selectedImage_step6');
       
       // Check cache first
       let adventureImageUrl = sessionStorage.getItem(adventureCacheKey);

@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import basket from "../assets/Basket.svg";
   import { goto } from "$app/navigation";
+  import { user } from "../lib/stores/auth";
+  import { getGiftsForUser, type Gift } from "../lib/database/gifts";
   import GiftCard from "./GiftCard.svelte";
 
   interface GiftData {
@@ -21,11 +24,75 @@
     notification_sent?: boolean;
   }
 
-  export let gifts: GiftData[] = [];
-  export let loadingGifts: boolean = false;
-  export let giftsError: string = "";
+  // Internal state for gifts and loading
+  let gifts: GiftData[] = [];
+  let loadingGifts: boolean = false;
+  let giftsError: string = "";
+  let giftsFetched: boolean = false;
 
-  console.log("gifts============================================>",gifts);
+  // Fetch gifts from API
+  const fetchGifts = async () => {
+    if (loadingGifts) return;
+    
+    console.log('[GiftTrackingComponent] Fetching gifts for user');
+    loadingGifts = true;
+    giftsError = "";
+    
+    try {
+      const result = await getGiftsForUser();
+      
+      if (result.success && result.data) {
+        // Transform the data to match the GiftTrackingComponent interface
+        gifts = result.data.map((gift: Gift) => ({
+          id: gift.id,
+          childName: gift.child_name,
+          ageGroup: gift.age_group,
+          status: gift.status,
+          giftFrom: gift.relationship,
+          occasion: gift.occasion,
+          expectedDelivery: gift.delivery_time
+            ? new Date(gift.delivery_time).toLocaleDateString("en-GB")
+            : "Unknown",
+          createdAt: gift.created_at ? new Date(gift.created_at) : new Date(),
+          notification_sent: gift.notification_sent,
+          send_to: gift.delivery_email,
+          created_at: gift.created_at
+        }));
+        console.log('[GiftTrackingComponent] Successfully fetched', gifts.length, 'gifts');
+      } else {
+        giftsError = result.error || "Failed to fetch gifts";
+        gifts = [];
+        console.error('[GiftTrackingComponent] Error fetching gifts:', giftsError);
+      }
+    } catch (err) {
+      console.error('[GiftTrackingComponent] Exception fetching gifts:', err);
+      giftsError = "An unexpected error occurred while fetching gifts";
+      gifts = [];
+    } finally {
+      loadingGifts = false;
+    }
+  };
+
+  // Fetch gifts when component mounts
+  onMount(() => {
+    const unsubscribe = user.subscribe(($user) => {
+      if ($user?.id && !giftsFetched) {
+        fetchGifts();
+        giftsFetched = true;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  });
+
+  // Reactive statement to handle user changes
+  $: if ($user?.id && !giftsFetched) {
+    console.log('[GiftTrackingComponent] User available, fetching gifts');
+    fetchGifts();
+    giftsFetched = true;
+  }
 
   const handlePurchaseGift = () => {
     // Navigate to the new gifts selection page
@@ -97,9 +164,17 @@
       {:else if giftsError}
         <div class="error-state">
           <p class="error-text">{giftsError}</p>
-          <button class="retry-button" on:click={() => window.location.reload()}>
-            Try Again
-          </button>
+          {#if $user?.id}
+            <button
+              class="retry-button"
+              on:click={() => {
+                giftsFetched = false;
+                fetchGifts();
+              }}
+            >
+              Try Again
+            </button>
+          {/if}
         </div>
       {:else if gifts.length === 0}
         <div class="empty-state">
@@ -347,6 +422,10 @@
 
   .retry-button:hover {
     background: #3b7ce6;
+  }
+
+  .retry-button:active {
+    transform: scale(0.98);
   }
 
   .empty-text {

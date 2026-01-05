@@ -153,10 +153,15 @@
                 }))
             };
 
+            // Get character_id from sessionStorage
+            const characterIdStr = browser ? sessionStorage.getItem('characterId') : null;
+            const characterId = characterIdStr ? parseInt(characterIdStr) : undefined;
+
             // Prepare story data
             const storyData = {
                 user_id: $user?.id,
                 child_profile_id: storyState.selectedChildProfileId,
+                character_id: characterId,
                 character_name: storyState.characterName,
                 character_type: storyState.characterType,
                 special_ability: storyState.specialAbility || '',
@@ -213,7 +218,7 @@
                     .select('age_group')
                     .eq('id', parseInt(storyState.selectedChildProfileId))
                     .single();
-                    console.log('childProfile ==================================================================> ', childProfile);
+                    
                     if (!profileError && childProfile?.age_group) {
                         ageGroup = normalizeAgeGroup(childProfile.age_group);
                     }

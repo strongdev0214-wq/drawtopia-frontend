@@ -419,10 +419,15 @@
         difficulty: selectedDifficulty || 'medium'
       };
 
+      // Get character_id from sessionStorage
+      const characterIdStr = browser ? sessionStorage.getItem('characterId') : null;
+      const characterId = characterIdStr ? parseInt(characterIdStr) : undefined;
+
       // Prepare story data
       const storyData = {
         user_id: $user?.id,
         child_profile_id: childProfileId,
+        character_id: characterId,
         character_name: charName,
         character_type: dbType,
         special_ability: ability || undefined,
@@ -1600,7 +1605,7 @@
 {/if}
 
 {#if showShareStoryModal}
-  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+  <ShareStoryModal storyTitle={storyTitle || "Untitled Story"} on:close={() => showShareStoryModal = false} />
 {/if}
 
 <svelte:window on:keydown={(e) => {

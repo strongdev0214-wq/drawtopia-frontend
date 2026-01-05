@@ -10,6 +10,7 @@ export interface Story {
   created_at?: string;
   user_id?: string; // User ID of the story creator/owner
   child_profile_id: string;
+  character_id?: number; // Reference to character in characters table
   character_name: string;
   character_type: 'person' | 'animal' | 'magical_creature';
   special_ability?: string;
@@ -74,6 +75,7 @@ export async function createStory(story: Story): Promise<DatabaseResult> {
         uid: uid,
         user_id: story.user_id,
         child_profile_id: story.child_profile_id,
+        character_id: story.character_id || null,
         character_name: story.character_name,
         character_type: story.character_type,
         special_ability: story.special_ability,

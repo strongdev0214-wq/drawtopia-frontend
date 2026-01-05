@@ -30,6 +30,7 @@
   let childProfiles: any[] = [];
   let loading: boolean = false;
   let showShareStoryModal = false;
+  let selectedStoryForSharing: any = null;
   let loadingCharacters: boolean = false;
   let charactersError: string = "";
 
@@ -199,7 +200,21 @@
     charactersError = "";
     getAllCharacters(currentUserId).then((result) => {
       if (result.success && result.data) {
-        characters = result.data;
+        // Calculate books count for each character based on allStories
+        const characterBookCounts = new Map<string, number>();
+        
+        allStories.forEach((story: any) => {
+          if (story.character_name) {
+            const key = story.character_name.toLowerCase();
+            characterBookCounts.set(key, (characterBookCounts.get(key) || 0) + 1);
+          }
+        });
+
+        // Add booksCount to each character
+        characters = result.data.map((character: any) => ({
+          ...character,
+          booksCount: characterBookCounts.get(character.character_name?.toLowerCase() || '') || 0
+        }));
       } else {
         charactersError = result.error || "Failed to fetch characters";
         characters = [];
@@ -291,6 +306,7 @@
   const handleShare = (event: CustomEvent) => {
     const storyInfo = event.detail;
     console.log('Share story:', storyInfo);
+    selectedStoryForSharing = storyInfo;
     showShareStoryModal = true;
   }
   
@@ -631,7 +647,13 @@
 </div>
 
 {#if showShareStoryModal}
-  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+  <ShareStoryModal 
+    storyTitle={selectedStoryForSharing?.story_title || "Untitled Story"} 
+    on:close={() => {
+      showShareStoryModal = false;
+      selectedStoryForSharing = null;
+    }} 
+  />
 {/if}
 
 <style>

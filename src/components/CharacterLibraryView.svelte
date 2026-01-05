@@ -1,12 +1,19 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import { user } from "../lib/stores/auth";
+  import { getAllCharacters, getAllStoriesForParent } from "../lib/database/stories";
   import CharacterCard from "./CharacterCard.svelte";
   import whitePlus from "../assets/Plus.svg";
 
-  export let characters: any[] = [];
-  export let loading: boolean = false;
-  export let error: string = "";
+  // Only keep event handler as prop - component manages its own data
   export let handleCharacterPreview: (event: CustomEvent) => void;
+
+  // Internal state for characters and loading
+  let characters: any[] = [];
+  let loading: boolean = false;
+  let error: string = "";
+  let charactersFetched: boolean = false;
 
   let searchQuery: string = "";
   let selectedFilter: string = "all";
@@ -48,6 +55,81 @@
       return matchesSearch && matchesFilter;
     });
   })();
+
+  // Fetch characters from API and calculate books count
+  const fetchCharacters = async (userId: string) => {
+    if (!userId || loading) return;
+    
+    console.log('[CharacterLibraryView] Fetching characters for user:', userId);
+    loading = true;
+    error = "";
+    
+    try {
+      // Fetch characters from API
+      const result = await getAllCharacters(userId);
+      if (!result.success || !result.data) {
+        error = result.error || "Failed to fetch characters";
+        characters = [];
+        console.error('[CharacterLibraryView] Error fetching characters:', error);
+        loading = false;
+        return;
+      }
+
+      // Fetch all stories to calculate books count
+      const storiesResult = await getAllStoriesForParent(userId);
+      let storiesData: any[] = [];
+      
+      if (storiesResult.success && storiesResult.data) {
+        storiesData = Array.isArray(storiesResult.data) ? storiesResult.data : [];
+        console.log('[CharacterLibraryView] Fetched stories:', storiesData.length);
+      }
+
+      // Calculate books count for each character
+      const characterBookCounts = new Map<string, number>();
+      
+      storiesData.forEach((story: any) => {
+        if (story.character_name) {
+          const key = story.character_name.toLowerCase();
+          characterBookCounts.set(key, (characterBookCounts.get(key) || 0) + 1);
+        }
+      });
+
+      // Add booksCount to each character
+      characters = result.data.map((character: any) => ({
+        ...character,
+        booksCount: characterBookCounts.get(character.character_name?.toLowerCase() || '') || 0
+      }));
+
+      console.log('[CharacterLibraryView] Successfully fetched', characters.length, 'characters with books count');
+    } catch (err) {
+      error = "An error occurred while fetching characters";
+      characters = [];
+      console.error('[CharacterLibraryView] Exception fetching characters:', err);
+    } finally {
+      loading = false;
+    }
+  };
+
+  // Fetch characters when component mounts
+  onMount(() => {
+    const unsubscribe = user.subscribe(($user) => {
+      if ($user?.id && !charactersFetched) {
+        fetchCharacters($user.id);
+        charactersFetched = true;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  });
+
+  // Reactive statement to handle user changes
+  $: if ($user?.id && !charactersFetched) {
+    console.log('[CharacterLibraryView] User available, fetching characters:', $user.id);
+    fetchCharacters($user.id);
+    charactersFetched = true;
+  }
 </script>
 
 <div class="frame-1410104150_01">
@@ -114,11 +196,29 @@
 
   <div class="frame-1410103894">
     {#if loading}
-      <div class="loading-message">Loading characters...</div>
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading characters...</p>
+      </div>
     {:else if error}
-      <div class="error-message">{error}</div>
+      <div class="error-state">
+        <p class="error-text">{error}</p>
+        {#if $user?.id}
+          <button
+            class="retry-button"
+            on:click={() => {
+              charactersFetched = false;
+              fetchCharacters($user.id);
+            }}
+          >
+            Try Again
+          </button>
+        {/if}
+      </div>
     {:else if filteredCharacters.length === 0}
-      <div class="empty-message">No characters found</div>
+      <div class="empty-state">
+        <p class="empty-text">No characters found</p>
+      </div>
     {:else}
       {#each filteredCharacters as character (character.id || character.character_name)}
         <CharacterCard 
@@ -355,24 +455,81 @@
     grid-template-columns: 1fr 1fr 1fr;
   }
 
-  .loading-message,
-  .error-message,
-  .empty-message {
+  /* Loading, Error, and Empty States */
+  .loading-state,
+  .error-state,
+  .empty-state {
     grid-column: 1 / -1;
-    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
     text-align: center;
-    color: #666;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #438bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-text {
+    color: #666d80;
     font-size: 16px;
     font-family: Quicksand;
     font-weight: 500;
+    margin: 0;
   }
 
-  .error-message {
-    color: #d32f2f;
+  .error-text {
+    color: #dc2626;
+    font-size: 16px;
+    font-family: Quicksand;
+    font-weight: 500;
+    margin: 0 0 16px 0;
   }
 
-  .empty-message {
-    color: #999;
+  .retry-button {
+    padding: 8px 16px;
+    background: #438bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: Quicksand;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .retry-button:hover {
+    background: #3b7ce6;
+  }
+
+  .retry-button:active {
+    transform: scale(0.98);
+  }
+
+  .empty-text {
+    color: #666d80;
+    font-size: 18px;
+    font-family: Quicksand;
+    font-weight: 600;
+    margin: 0 0 8px 0;
   }
 
   /* Mobile responsive styles */

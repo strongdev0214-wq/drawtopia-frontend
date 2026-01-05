@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import xcom from "../assets/Xcom.svg";
   import facebook from "../assets/Facebook.svg";
@@ -10,13 +10,15 @@
   import x from "../assets/X.svg";
   import link from "../assets/Link.svg";
 
+  export let storyTitle: string ="";
+
   const dispatch = createEventDispatcher();
 
   function handleClose() {
     dispatch('close');
   }
 
-  function handleOverlayClick(event) {
+  function handleOverlayClick(event: MouseEvent) {
     if (event.target === event.currentTarget) {
       handleClose();
     }
@@ -47,7 +49,7 @@
         <div class="heading">
           <div>
             <span class="sharetitlestorytoeveryone_span"
-              >Share "Title Story" to Everyone</span
+              >Share "{storyTitle}" to Everyone</span
             >
           </div>
           <div>
@@ -145,6 +147,7 @@
     font-weight: 600;
     line-height: 33.6px;
     word-wrap: break-word;
+    text-wrap-mode: nowrap;
   }
 
   .leteveryoneseethewonderfulstoryyoucreated_span {

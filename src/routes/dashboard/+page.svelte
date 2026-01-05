@@ -4,16 +4,11 @@
   import { browser } from "$app/environment";
   import { user } from "../../lib/stores/auth";
   import {
-    getChildProfiles,
-    type ChildProfile,
-  } from "../../lib/database/childProfiles";
-  import {
     getAllStoriesForParent,
     type Story,
   } from "../../lib/database/stories";
   import { supabase } from "../../lib/supabase";
   import { getGiftsForUser, type Gift } from "../../lib/database/gifts";
-  import magnifyingglass from "../../assets/MagnifyingGlass.svg";
   import caretdown from "../../assets/CaretDown.svg";
   import house from "../../assets/House.svg";
   import baby from "../../assets/Baby.svg";
@@ -30,7 +25,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   import starIcon from "../../assets/OutlineStar.svg";
   import speakerIcon from "../../assets/OutlineHeadset.svg";
   import BookIcon from "../../assets/Book.svg";
-  import CharacterCard from "../../components/CharacterCard.svelte";
   import CharacterDetailsModal from "../../components/CharacterDetailsModal.svelte";
   import MobileDashboardComponent from "../../components/MobileDashboardComponent.svelte";
   import HomeLibraryView from "../../components/HomeLibraryView.svelte";
@@ -213,45 +207,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   // Function to format stories created text
   const formatStoriesCreatedText = (firstName: string, ageGroup: string) => {
     return `${firstName} (Age ${ageGroup})`;
-  };
-
-  // Fetch child profiles from Supabase
-  const fetchChildProfiles = async (userId: string) => {
-    try {
-      loading = true;
-      error = "";
-      
-      const result = await getChildProfiles(userId);
-
-      if (result.success && result.data) {
-        // Transform the data to match the component's expected format
-        childProfiles = result.data
-          .map((profile: ChildProfile, index: number) => ({
-            id: profile.id || `temp_child_${index}_${Date.now()}`,
-            name: profile.first_name,
-            first_name: profile.first_name,
-            ageLabel: formatAgeLabel(profile.age_group),
-            avatarUrl: profile.avatar_url || "https://placehold.co/48x48",
-            storiesCreatedText: formatStoriesCreatedText(
-              profile.first_name,
-              profile.age_group,
-            ),
-            lastStory: getRandomStoryTheme(),
-            relationship: profile.relationship,
-            created_at: profile.created_at,
-          }))
-          .filter((profile: any) => profile.id); // Ensure all profiles have valid ids
-      } else {
-        error = result.error || "Failed to fetch child profiles";
-        childProfiles = [];
-      }
-    } catch (err) {
-      console.error("Error fetching child profiles:", err);
-      error = "An unexpected error occurred while fetching child profiles";
-      childProfiles = [];
-    } finally {
-      loading = false;
-    }
   };
 
   // Direct query to Supabase stories table (for debugging/verification)
@@ -554,48 +509,8 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   onMount(() => {
     // Check initial screen size
     checkScreenSize();
-    
-    // Listen for window resize events
-    if (browser) {
-      window.addEventListener('resize', checkScreenSize);
-    }
-    
-    const unsubscribe = user.subscribe(($user) => {
-      // Only fetch if user ID has changed (prevent duplicate fetches on every store update)
-      if ($user?.id && $user.id !== lastFetchedUserId) {
-        console.log('[Dashboard] User ID changed, fetching data for:', $user.id);
-        lastFetchedUserId = $user.id;
-        
-        fetchChildProfiles($user.id);
-        fetchStories($user.id);
-        fetchGifts();
-        fetchSubscriptionStatus($user.id);
-      } else if (!$user?.id && lastFetchedUserId !== null) {
-        // Reset state if user logged out
-        console.log('[Dashboard] User logged out, clearing data');
-        lastFetchedUserId = null;
-        
-        childProfiles = [];
-        stories = [];
-        rawStories = [];
-        characters = [];
-        gifts = [];
-        loading = false;
-        loadingStories = false;
-        loadingGifts = false;
-        error = "";
-        storiesError = "";
-        giftsError = "";
-        showGiftSelectModal = false;
-        // Clear session flag when user logs out
-        if (browser) {
-          sessionStorage.removeItem("giftModalShownThisSession");
-        }
-      }
-    });
 
     return () => {
-      unsubscribe();
       if (browser) {
         window.removeEventListener('resize', checkScreenSize);
       }
@@ -992,12 +907,8 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
       
       {#if activeMenu === "child-profiles"}
         <ChildProfilesView
-          {childProfiles}
-          {loading}
-          {error}
           {handleAddChildren}
           {handleNewStory}
-          {fetchChildProfiles}
         />
       {/if}
       
@@ -1013,15 +924,12 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
 
       {#if activeMenu === "characters"}
         <CharacterLibraryView
-          {characters}
-          {loading}
-          {error}
           handleCharacterPreview={handleCharacterPreview}
         />
       {/if}
       
       {#if activeMenu === "gift-tracking"}
-        <GiftTrackingComponent {gifts} {loadingGifts} {giftsError} />
+        <GiftTrackingComponent />
       {/if}
     </div>
   </div>

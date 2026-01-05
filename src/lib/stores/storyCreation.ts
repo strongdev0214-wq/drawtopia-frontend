@@ -10,6 +10,7 @@ import type { Story } from '../database/stories';
 export interface StoryCreationState {
   selectedChildProfileId?: string;
   selectedChildProfileName?: string;
+  characterId?: number;
   characterName?: string;
   characterType?: 'person' | 'animal' | 'magical_creature';
   specialAbility?: string;
@@ -39,6 +40,7 @@ const createStoryCreationStore = () => {
       if (browser) {
         const selectedChildProfileId = sessionStorage.getItem('selectedChildProfileId');
         const selectedChildProfileName = sessionStorage.getItem('selectedChildProfileName');
+        const characterIdStr = sessionStorage.getItem('characterId');
         const characterName = sessionStorage.getItem('characterName');
         const characterType = sessionStorage.getItem('selectedCharacterType');
         const specialAbility = sessionStorage.getItem('specialAbility');
@@ -67,6 +69,7 @@ const createStoryCreationStore = () => {
         const newState = {
           selectedChildProfileId: selectedChildProfileId ? selectedChildProfileId : "undefined",
           selectedChildProfileName: selectedChildProfileName || undefined,
+          characterId: characterIdStr ? parseInt(characterIdStr) : undefined,
           characterName: characterName || undefined,
           characterType: characterType as any || undefined,
           specialAbility: specialAbility || undefined,
@@ -200,6 +203,7 @@ const createStoryCreationStore = () => {
       console.log(state);
       return {
         child_profile_id: state.selectedChildProfileId,
+        character_id: state.characterId || undefined,
         character_name: state.characterName,
         character_type: state.characterType,
         special_ability: state.specialAbility,

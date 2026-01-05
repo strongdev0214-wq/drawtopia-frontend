@@ -1,15 +1,68 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { user } from "../lib/stores/auth";
+  import { getChildProfiles } from "../lib/database/childProfiles";
   import ChildCard from "./ChildCard.svelte";
   import usercircleplus from "../assets/UserCirclePlus.svg";
 
-  export let childProfiles: any[] = [];
-  export let loading: boolean = false;
-  export let error: string = "";
+  // Only keep event handler callbacks as props - component manages its own data
   export let handleAddChildren: () => void;
   export let handleNewStory: (event: CustomEvent) => void;
-  export let fetchChildProfiles: (userId: string) => Promise<void>;
+
+  // Internal state for child profiles and loading
+  let childProfiles: any[] = [];
+  let loading: boolean = false;
+  let error: string = "";
+  let childProfilesFetched: boolean = false;
+
+  // Fetch child profiles from API
+  const fetchChildProfiles = async (userId: string) => {
+    if (!userId || loading) return;
+    
+    console.log('[ChildProfilesView] Fetching child profiles for user:', userId);
+    loading = true;
+    error = "";
+    
+    try {
+      const result = await getChildProfiles(userId);
+      if (result.success && result.data) {
+        childProfiles = result.data;
+        console.log('[ChildProfilesView] Successfully fetched', childProfiles.length, 'child profiles');
+      } else {
+        error = result.error || "Failed to fetch child profiles";
+        childProfiles = [];
+        console.error('[ChildProfilesView] Error fetching child profiles:', error);
+      }
+    } catch (err) {
+      error = "An error occurred while fetching child profiles";
+      childProfiles = [];
+      console.error('[ChildProfilesView] Exception fetching child profiles:', err);
+    } finally {
+      loading = false;
+    }
+  };
+
+  // Fetch child profiles when component mounts
+  onMount(() => {
+    const unsubscribe = user.subscribe(($user) => {
+      if ($user?.id && !childProfilesFetched) {
+        fetchChildProfiles($user.id);
+        childProfilesFetched = true;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  });
+
+  // Reactive statement to handle user changes
+  $: if ($user?.id && !childProfilesFetched) {
+    console.log('[ChildProfilesView] User available, fetching child profiles:', $user.id);
+    fetchChildProfiles($user.id);
+    childProfilesFetched = true;
+  }
 </script>
 
 <div class="frame-1410104149">
@@ -50,12 +103,17 @@
       {:else if error}
         <div class="error-state">
           <p class="error-text">{error}</p>
-          <button
-            class="retry-button"
-            on:click={() => $user?.id && fetchChildProfiles($user.id)}
-          >
-            Try Again
-          </button>
+          {#if $user?.id}
+            <button
+              class="retry-button"
+              on:click={() => {
+                childProfilesFetched = false;
+                fetchChildProfiles($user.id);
+              }}
+            >
+              Try Again
+            </button>
+          {/if}
         </div>
       {:else if childProfiles.length === 0}
         <div class="empty-state">
@@ -266,6 +324,10 @@
 
   .retry-button:hover {
     background: #3b7ce6;
+  }
+
+  .retry-button:active {
+    transform: scale(0.98);
   }
 
   .empty-text {

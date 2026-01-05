@@ -15,6 +15,7 @@
 
   let showStoryInfoModal = false;
   let showShareStoryModal = false;
+  let storyTitle = "Emma's Magical Forest Adventure";
 </script>
 
 <svelte:window
@@ -208,7 +209,7 @@
   {#if showStoryInfoModal}
     <StoryInfoModal 
       storyId=""
-      storyTitle="Emma's Magical Forest Adventure"
+      storyTitle={storyTitle}
       on:close={() => showStoryInfoModal = false}
       on:delete={(e) => {
         showStoryInfoModal = false;
@@ -217,7 +218,7 @@
     />
   {/if}
   {#if showShareStoryModal}
-    <ShareStoryModal />
+    <ShareStoryModal storyTitle={storyTitle} />
   {/if}
 </div>
 

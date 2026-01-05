@@ -134,7 +134,7 @@
         console.log("Loaded story:", story);
         
         // Set story title
-        storyTitle = story.story_title || story.character_name || "Untitled Story";
+        storyTitle = story[0].story_title;
         
         // Check if story has been purchased
         // Ensure we properly check the purchased field from the database
@@ -973,7 +973,7 @@
     />
   {/if}
   {#if showShareStoryModal}
-    <ShareStoryModal on:close={() => showShareStoryModal = false} />
+    <ShareStoryModal storyTitle={storyTitle} on:close={() => showShareStoryModal = false} />
   {/if}
   {#if showStoryPreviewEndModal}
     <div

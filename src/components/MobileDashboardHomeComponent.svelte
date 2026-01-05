@@ -14,6 +14,7 @@
   import starIcon from "../assets/OutlineStar.svg";
   
   let showShareStoryModal = false;
+  let selectedStoryForSharing: any = null;
 
   export let libraryView: "all" | "characters" | "children" = "all";
   export let setLibraryView: (v: "all" | "characters" | "children") => void;
@@ -68,6 +69,7 @@
   function handleShare(event: CustomEvent) {
     const storyInfo = event.detail;
     console.log('Share story:', storyInfo);
+    selectedStoryForSharing = storyInfo;
     showShareStoryModal = true;
   }
 </script>
@@ -349,7 +351,13 @@
 </div>
 
 {#if showShareStoryModal}
-  <ShareStoryModal on:close={() => showShareStoryModal = false} />
+  <ShareStoryModal 
+    storyTitle={selectedStoryForSharing?.title || selectedStoryForSharing?.storyTitle || "Untitled Story"} 
+    on:close={() => {
+      showShareStoryModal = false;
+      selectedStoryForSharing = null;
+    }} 
+  />
 {/if}
 
 <style>

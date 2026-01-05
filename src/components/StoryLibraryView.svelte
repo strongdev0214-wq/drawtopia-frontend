@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { user } from "../lib/stores/auth";
   import BookCard from "./BookCard.svelte";
   import AdvancedSelect from "./AdvancedSelect.svelte";
@@ -9,6 +10,8 @@
   export let storiesError: string = "";
   export let fetchStories: (userId: string) => Promise<void>;
   export let childProfiles: any[] = [];
+
+  let storiesFetched = false;
 
   let selectedFormat: string = "all";
   let selectedChild: string = "all";
@@ -84,6 +87,31 @@
 
     return true;
   });
+
+  // Fetch stories when component mounts or user changes
+  onMount(() => {
+    const unsubscribe = user.subscribe(($user) => {
+      if ($user?.id && !storiesFetched) {
+        console.log('[StoryLibraryView] Fetching stories for user:', $user.id);
+        fetchStories($user.id);
+        storiesFetched = true;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  });
+
+  // Reset fetch flag when user changes
+  $: if ($user?.id) {
+    // Re-fetch stories if user changed and stories haven't been fetched yet
+    if (!storiesFetched && fetchStories) {
+      console.log('[StoryLibraryView] User available, fetching stories:', $user.id);
+      fetchStories($user.id);
+      storiesFetched = true;
+    }
+  }
 
   const handleViewBook = (event: CustomEvent) => {
     // Handle view book event if needed
