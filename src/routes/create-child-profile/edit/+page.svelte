@@ -308,6 +308,15 @@
     });
     goto('/dashboard');
   };
+
+  const handleBackClick = () => {
+    if (browser && window.history.length > 1) {
+      window.history.back();
+    } else {
+      // Fallback to dashboard if no history
+      goto('/dashboard');
+    }
+  };
 </script>
 
 {#if loading || !browser}
@@ -327,9 +336,13 @@
           <div class="logo-img"></div>
         </div>
       </div>
-      <MobileBackBtn backText="Back" backRoute="/dashboard" />
+      <div on:click={handleBackClick} on:keydown={(e) => e.key === "Enter" && handleBackClick()} role="button" tabindex="0" style="cursor: pointer;">
+        <MobileBackBtn backText="Back" backRoute="" />
+      </div>
       <div class="back-btn-container">
-        <BackBtn />
+        <div on:click={handleBackClick} on:keydown={(e) => e.key === "Enter" && handleBackClick()} role="button" tabindex="0" style="cursor: pointer;">
+          <BackBtn />
+        </div>
       </div>
       <div class="frame-5">
         <div class="frame-1">
