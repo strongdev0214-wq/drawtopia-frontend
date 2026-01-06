@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import QRCode from 'qrcode';
   import x from "../assets/X.svg";
-  import qrcode from "../assets/qr.png";
   import download from "../assets/DownloadSimple.svg";
   import caretright from "../assets/CaretDown.svg";
   import video from "../assets/Video.svg";
@@ -15,6 +15,72 @@
 
   let isDownloadingPDF = false;
   let isDeletingStory = false;
+  let qrCodeDataUrl: string = "";
+  let isLoadingQR = true;
+  let pdfUrl: string = "";
+
+  // Generate QR code when component mounts
+  onMount(async () => {
+    if (storyId) {
+      await fetchPDFUrlAndGenerateQR();
+    }
+  });
+
+  // Fetch PDF URL and generate QR code
+  async function fetchPDFUrlAndGenerateQR() {
+    try {
+      isLoadingQR = true;
+      console.log(`[StoryInfoModal] Fetching PDF URL for story ID: ${storyId}`);
+      
+      // Call backend API to get or generate PDF URL
+      const apiUrl = `https://drawtopia-backend.vercel.app/api/books/${storyId}/generate-pdf`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch PDF URL: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.pdf_url) {
+        pdfUrl = result.pdf_url;
+        console.log(`[StoryInfoModal] PDF URL received: ${pdfUrl}`);
+        
+        // Generate QR code from PDF URL
+        qrCodeDataUrl = await QRCode.toDataURL(pdfUrl, {
+          width: 200,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        
+        console.log('[StoryInfoModal] QR code generated successfully');
+      } else {
+        throw new Error('PDF URL not available');
+      }
+    } catch (error) {
+      console.error('[StoryInfoModal] Error generating QR code:', error);
+      // Generate a fallback QR code with a placeholder message
+      try {
+        qrCodeDataUrl = await QRCode.toDataURL('Story PDF not available', {
+          width: 200,
+          margin: 1,
+        });
+      } catch (qrError) {
+        console.error('[StoryInfoModal] Failed to generate fallback QR code:', qrError);
+      }
+    } finally {
+      isLoadingQR = false;
+    }
+  }
 
   function handleClose() {
     dispatch('close');
@@ -49,46 +115,51 @@
     isDownloadingPDF = true;
     
     try {
-      console.log(`[StoryInfoModal] Requesting PDF generation for story ID: ${storyId}`);
+      // Use cached PDF URL if available, otherwise fetch it
+      let downloadPdfUrl = pdfUrl;
       
-      // Call backend API to generate PDF
-      const apiUrl = `https://drawtopia-backend.vercel.app/api/books/${storyId}/generate-pdf`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      console.log(`[StoryInfoModal] Response status: ${response.status}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[StoryInfoModal] Server returned error: ${errorText}`);
-        throw new Error(`Server returned ${response.status}: ${errorText}`);
+      if (!downloadPdfUrl) {
+        console.log(`[StoryInfoModal] Requesting PDF generation for story ID: ${storyId}`);
+        
+        // Call backend API to generate PDF
+        const apiUrl = `https://drawtopia-backend.vercel.app/api/books/${storyId}/generate-pdf`;
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log(`[StoryInfoModal] Response status: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`[StoryInfoModal] Server returned error: ${errorText}`);
+          throw new Error(`Server returned ${response.status}: ${errorText}`);
+        }
+        
+        const result = await response.json();
+        console.log('[StoryInfoModal] Server response:', result);
+        
+        if (!result.success) {
+          throw new Error(result.message || 'PDF generation failed');
+        }
+        
+        if (!result.pdf_url) {
+          throw new Error('PDF URL not returned from server');
+        }
+        
+        downloadPdfUrl = result.pdf_url;
       }
       
-      const result = await response.json();
-      console.log('[StoryInfoModal] Server response:', result);
-      
-      if (!result.success) {
-        throw new Error(result.message || 'PDF generation failed');
-      }
-      
-      if (!result.pdf_url) {
-        throw new Error('PDF URL not returned from server');
-      }
-
-      // Download the PDF file
-      const pdfUrl = result.pdf_url;
-      console.log(`[StoryInfoModal] PDF URL received: ${pdfUrl}`);
+      console.log(`[StoryInfoModal] PDF URL: ${downloadPdfUrl}`);
       
       // Try to download the PDF
       try {
         // Method 1: Direct download via anchor tag
         const link = document.createElement('a');
-        link.href = pdfUrl;
+        link.href = downloadPdfUrl;
         link.download = `${storyTitle.replace(/[^a-z0-9]/gi, '_')}_${storyId}.pdf`;
         link.target = '_blank'; // Open in new tab as fallback
         link.rel = 'noopener noreferrer';
@@ -106,7 +177,7 @@
         
         // Method 2: Fetch and download as blob (fallback)
         try {
-          const pdfResponse = await fetch(pdfUrl);
+          const pdfResponse = await fetch(downloadPdfUrl);
           if (!pdfResponse.ok) {
             throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`);
           }
@@ -130,7 +201,7 @@
         } catch (blobError) {
           console.error('[StoryInfoModal] Blob download also failed:', blobError);
           // Last resort: open in new window
-          window.open(pdfUrl, '_blank');
+          window.open(downloadPdfUrl, '_blank');
         }
       }
       
@@ -242,7 +313,21 @@
       <div class="frame-1410103944">
         <div><span class="storyinformation_span">Story Information</span></div>
       </div>
-      <img class="image-7" src={qrcode} alt="info_sotry" />
+      <div class="qr-code-container">
+        {#if isLoadingQR}
+          <div class="qr-loading">
+            <div class="spinner"></div>
+            <span class="loading-text">Generating QR Code...</span>
+          </div>
+        {:else if qrCodeDataUrl}
+          <img class="image-7" src={qrCodeDataUrl} alt="Story QR Code" />
+          <span class="qr-label">Scan to access story PDF</span>
+        {:else}
+          <div class="qr-error">
+            <span>QR Code unavailable</span>
+          </div>
+        {/if}
+      </div>
       <div class="checklist-container">
         <div 
           class="checklist"
@@ -342,9 +427,77 @@
     word-wrap: break-word;
   }
 
+  .qr-code-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 174px;
+  }
+
   .image-7 {
     width: 170px;
-    height: 174px;
+    height: 170px;
+    border-radius: 8px;
+    border: 1px solid #ededed;
+    padding: 4px;
+    background: white;
+  }
+
+  .qr-label {
+    color: #666;
+    font-size: 12px;
+    font-family: Nunito;
+    font-weight: 400;
+    text-align: center;
+  }
+
+  .qr-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #438bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-text {
+    color: #666;
+    font-size: 14px;
+    font-family: Nunito;
+    font-weight: 400;
+  }
+
+  .qr-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 170px;
+    height: 170px;
+    border: 1px dashed #dcdcdc;
+    border-radius: 8px;
+    background: #f9f9f9;
+  }
+
+  .qr-error span {
+    color: #999;
+    font-size: 14px;
+    font-family: Nunito;
+    font-weight: 400;
   }
 
   .downloadstory_span {

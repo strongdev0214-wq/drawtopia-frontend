@@ -155,10 +155,12 @@
       <div class="rectangle-261_01"></div>
     </div>
     <div class="frame-2147227589">
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="frame-1410104245" on:click={handleUseInNewBook} role="button" tabindex="0">
         <div class="ellipse-1415"></div>
         <div class="use-in-new-book"><span class="useinnewbook_span">Use in New Book</span></div>
       </div>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="button" on:click={handlePreview} role="button" tabindex="0">
         <div class="eye">
           <img src={eye} alt="preview" class="vector_03" />

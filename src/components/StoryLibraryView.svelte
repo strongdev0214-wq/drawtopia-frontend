@@ -231,6 +231,7 @@
 {#if showShareStoryModal}
   <ShareStoryModal 
     storyTitle={selectedStoryForSharing?.story_title || "Untitled Story"} 
+    storyId={selectedStoryForSharing?.uid || selectedStoryForSharing?.id || ""}
     on:close={() => {
       showShareStoryModal = false;
       selectedStoryForSharing = null;

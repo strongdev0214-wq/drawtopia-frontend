@@ -218,7 +218,12 @@
     />
   {/if}
   {#if showShareStoryModal}
-    <ShareStoryModal storyTitle={storyTitle} />
+    <ShareStoryModal 
+      storyTitle={storyTitle} 
+      storyId=""
+      userId=""
+      on:close={() => showShareStoryModal = false}
+    />
   {/if}
 </div>
 

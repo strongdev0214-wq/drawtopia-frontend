@@ -1605,7 +1605,11 @@
 {/if}
 
 {#if showShareStoryModal}
-  <ShareStoryModal storyTitle={storyTitle || "Untitled Story"} on:close={() => showShareStoryModal = false} />
+  <ShareStoryModal 
+    storyTitle={storyTitle || "Untitled Story"} 
+    storyId={storyId || ""}
+    on:close={() => showShareStoryModal = false} 
+  />
 {/if}
 
 <svelte:window on:keydown={(e) => {

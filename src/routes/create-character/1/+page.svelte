@@ -992,24 +992,6 @@
     text-align: center;
   }
 
-  .selected-child-info {
-    align-self: stretch;
-    text-align: center;
-    padding: 8px 16px;
-    background: #eef6ff;
-    border-radius: 12px;
-    margin: 8px 0;
-  }
-
-  .selectedchild_span {
-    color: #438bff;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
   .uploadyourdrawingordrawyourowncharacterrighthere_span {
     color: #666d80;
     font-size: 18px;
@@ -2282,28 +2264,6 @@
     .button-fill {
       width: 100%;
     }
-  }
-
-  /* Upload success notification styles */
-  .vector {
-    width: 14px;
-    height: 14px;
-    left: 1px;
-    top: 1px;
-    position: absolute;
-    background: #effefa;
-  }
-
-  .vector::after {
-    content: "";
-    position: absolute;
-    left: 3px;
-    top: 1px;
-    width: 4px;
-    height: 7px;
-    border: solid white;
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
   }
 
   .yourcharacterlooksamazing_span {
