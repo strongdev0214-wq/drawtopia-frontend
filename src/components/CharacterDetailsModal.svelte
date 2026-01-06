@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import PersonSimple from "../assets/PersonSimple.svg";
   import animal from "../assets/animal.svg";
   import monster from "../assets/monster.svg";
@@ -16,7 +16,9 @@
   import logo from "../assets/logo.png";
 
   export let character: any;
-  export let books: any[] = [];
+
+  // Reactive books array that updates when character changes
+  $: books = character?.stories || [];
 
   const dispatch = createEventDispatcher();
 
@@ -31,7 +33,7 @@
       return PersonSimple;
     } else if (character?.character_type === "animal") {
       return animal;
-    } else if (character?.character_type === "magical_creature") {
+    } else if (character?.character_type === "magical") {
       return monster;
     }
     return PersonSimple;
@@ -43,7 +45,7 @@
       return "Person";
     } else if (character?.character_type === "animal") {
       return "Animal";
-    } else if (character?.character_type === "magical_creature") {
+    } else if (character?.character_type === "magical") {
       return "Magical Creature";
     }
     return "Person";
@@ -68,7 +70,7 @@
 
   // Get image source
   const getImageSrc = () => {
-    return character?.original_image_url || "https://placehold.co/125x127";
+    return character?.enhanced_images || "https://placehold.co/125x127";
   };
 
   // Format date
@@ -91,9 +93,9 @@
   const getLastUsedDate = () => {
     if (books.length === 0) return "Never";
     const dates = books
-      .map((book) => book.created_at)
+      .map((book: any) => book.created_at)
       .filter(Boolean)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
     return dates.length > 0 ? formatDate(dates[0]) : "Never";
   };
 
@@ -449,7 +451,7 @@
   .rectangle-261_02 {
     align-self: stretch;
     height: 1px;
-    background: #EDEDED;
+    border-top: 1px solid #EDEDED;
   }
 
   .booksfeaturingluna_span {
@@ -1121,7 +1123,6 @@
     align-items: flex-start;
     gap: 24px;
     display: inline-flex;
-    max-height: 90vh;
     overflow-y: auto;
   }
 

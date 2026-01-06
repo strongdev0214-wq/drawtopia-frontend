@@ -13,8 +13,6 @@
     saveSelectedImageUrl
   } from "../../../lib/imageGeneration";
   import { storyCreation } from "../../../lib/stores/storyCreation";
-  import { createCharacter } from "../../../lib/database/characters";
-  import { supabase } from "../../../lib/supabase";
 
   let isMobile = false;
   let selectedEnhancement = ""; // Default: no selection - "minimal", "normal", or "high"
@@ -52,7 +50,7 @@
       selectedStyle = sessionStorage.getItem('selectedStyle') || "cartoon";
       lastSelectedStyle = selectedStyle;
       
-      // Get character details from sessionStorage
+      // Get character details from sessionStorage 
       const characterType = sessionStorage.getItem('selectedCharacterType') || "";
       const specialAbility = sessionStorage.getItem('specialAbility') || "";
       const description = ""; // Description field doesn't exist yet, but keeping for future use
@@ -123,25 +121,11 @@
     }
   }
 
-  // Handle continue to next step - collect all enhanced images and save character
-  const handleContinue = async () => {
+  // Handle continue to next step - collect all enhanced images
+  const handleContinue = () => {
     if (!browser) return;
     
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user found');
-        alert('Please log in to continue');
-        return;
-      }
-
-      // Collect character information from sessionStorage
-      const characterName = sessionStorage.getItem('characterName') || 'My Character';
-      const characterType = sessionStorage.getItem('selectedCharacterType') || 'person';
-      const specialAbility = sessionStorage.getItem('specialAbility') || '';
-      const childProfileId = sessionStorage.getItem('selectedChildProfileId');
-
       // Get the selected enhanced image URL
       let selectedEnhancedImage = '';
       if (selectedEnhancement && selectedStyle) {
@@ -169,34 +153,6 @@
       storyCreation.setEnhancedImages(enhancedImages);
       
       console.log('Enhanced images collected:', enhancedImages);
-
-      // Save character to database
-      // Store as text (single URL) if only selected image, or as the selected one
-      const characterData = {
-        user_id: user.id,
-        child_profile_id: childProfileId ? parseInt(childProfileId) : null,
-        character_name: characterName,
-        character_type: characterType as 'person' | 'animal' | 'magical_creature',
-        special_ability: specialAbility || undefined,
-        character_style: selectedStyle as '3d' | 'cartoon' | 'anime',
-        original_image_url: uploadedImageUrl,
-        enhanced_images: selectedEnhancedImage
-      };
-
-      console.log('Saving character to database:', characterData);
-
-      const result = await createCharacter(characterData);
-
-      if (result.success) {
-        console.log('Character saved successfully:', result.data);
-        // Store character ID for later use
-        if (result.data?.id) {
-          sessionStorage.setItem('characterId', result.data.id.toString());
-        }
-      } else {
-        console.error('Failed to save character:', result.error);
-        // Continue anyway - character saving is not blocking
-      }
 
       // Navigate to next step
       goto("/create-character/3");

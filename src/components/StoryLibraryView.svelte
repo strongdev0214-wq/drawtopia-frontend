@@ -3,6 +3,7 @@
   import { user } from "../lib/stores/auth";
   import BookCard from "./BookCard.svelte";
   import AdvancedSelect from "./AdvancedSelect.svelte";
+  import ShareStoryModal from "./ShareStoryModal.svelte";
   import magnifyingglass from "../assets/MagnifyingGlass.svg";
 
   export let stories: any[] = [];
@@ -12,6 +13,8 @@
   export let childProfiles: any[] = [];
 
   let storiesFetched = false;
+  let showShareStoryModal = false;
+  let selectedStoryForSharing: any = null;
 
   let selectedFormat: string = "all";
   let selectedChild: string = "all";
@@ -117,6 +120,13 @@
     // Handle view book event if needed
     console.log('View book:', event.detail);
   };
+
+  const handleShare = (event: CustomEvent) => {
+    const storyInfo = event.detail;
+    console.log('Share story:', storyInfo);
+    selectedStoryForSharing = storyInfo;
+    showShareStoryModal = true;
+  };
 </script>
 
 <div class="frame-1410104150_01">
@@ -211,12 +221,22 @@
         </div>
       {:else}
         {#each filteredStories as story (story.id || story.uid || `story-${story.created_at || Date.now()}`)}
-          <BookCard item={story} on:viewBook={handleViewBook} />
+          <BookCard item={story} on:viewBook={handleViewBook} on:share={handleShare} />
         {/each}
       {/if}
     </div>
   </div>
 </div>
+
+{#if showShareStoryModal}
+  <ShareStoryModal 
+    storyTitle={selectedStoryForSharing?.story_title || "Untitled Story"} 
+    on:close={() => {
+      showShareStoryModal = false;
+      selectedStoryForSharing = null;
+    }} 
+  />
+{/if}
 
 <style>
   .storylibrary_01_span {

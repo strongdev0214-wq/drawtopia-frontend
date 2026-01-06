@@ -28,6 +28,8 @@
   import AdvancedSelect from "../../../components/AdvancedSelect.svelte";
   import { getChildProfiles } from "../../../lib/database/childProfiles";
   import ChildrenSelect from "../../../components/ChildrenSelect.svelte";
+  import { createCharacter, updateCharacter, getCharacterById } from "../../../lib/database/characters";
+  import { supabase } from "../../../lib/supabase";
 
   let fileInput: HTMLInputElement;
   let isDragOver = false;
@@ -73,34 +75,105 @@
   // Check for selected child profile and fetch child profiles
   onMount(async () => {
     if (browser) {
-      // If no child profile is selected, redirect to dashboard
+      // Get child profile ID from sessionStorage (set from dashboard)
       const childProfileId = sessionStorage.getItem("selectedChildProfileId");
-      // if (!childProfileId) {
-      //   console.log("No child profile selected, redirecting to dashboard: /dashboard");
-      //   goto('/dashboard');
-      // } else {
-      //   selectedChildProfileId = childProfileId;
-      // }
 
       // Fetch child profiles for the dropdown
       if ($user?.id) {
         const result = await getChildProfiles($user.id);
         if (result.success && result.data) {
           childProfiles = result.data.map((profile: any) => ({
-            value: profile.id,
+            value: profile.id.toString(),
             label: profile.first_name,
             avatarUrl: profile.avatar_url,
           }));
-          // Set default selected child if available
+          
+          // Set default selected child if available from sessionStorage
           if (childProfileId && childProfiles.length > 0) {
             const selectedChild = childProfiles.find(
               (c) => c.value === childProfileId,
             );
             if (selectedChild) {
+              selectedChildProfileId = childProfileId;
               selectedChildProfileName = selectedChild.label;
+              
+              // Update the story creation store with the selected child
+              storyCreation.setSelectedChild(childProfileId, selectedChild.label);
             }
           }
         }
+      }
+
+      // Check if we're in prefill mode (coming from "Use in New Book")
+      const prefillMode = sessionStorage.getItem('prefill_character_mode');
+      if (prefillMode === 'true') {
+        // Pre-fill character image
+        const prefillImage = sessionStorage.getItem('prefill_character_image');
+        if (prefillImage) {
+          uploadedImageUrl = prefillImage;
+          storyCreation.setOriginalImageUrl(prefillImage);
+        }
+
+        // Pre-fill character name
+        const prefillName = sessionStorage.getItem('prefill_character_name');
+        if (prefillName) {
+          characterName = prefillName;
+        }
+
+        // Pre-fill character type
+        const prefillType = sessionStorage.getItem('prefill_character_type');
+        if (prefillType) {
+          selectedCharacterType = prefillType;
+        }
+
+        // Pre-fill special ability
+        const prefillAbility = sessionStorage.getItem('prefill_special_ability');
+        if (prefillAbility) {
+          // Check if it's one of the predefined options
+          const isCustomAbility = !specialAbilityOptions.some(
+            opt => opt.label.toLowerCase() === prefillAbility.toLowerCase()
+          );
+          
+          if (isCustomAbility) {
+            customSpecialAbility = prefillAbility;
+          } else {
+            // Find the matching option value
+            const matchingOption = specialAbilityOptions.find(
+              opt => opt.label.toLowerCase() === prefillAbility.toLowerCase()
+            );
+            if (matchingOption) {
+              selectedSpecialAbility = matchingOption.value;
+            }
+          }
+        }
+
+        // Pre-fill character style
+        const prefillStyle = sessionStorage.getItem('prefill_character_style');
+        if (prefillStyle) {
+          selectedCharacterStyle = prefillStyle;
+        }
+
+        // Pre-fill child profile ID if available
+        const prefillChildProfileId = sessionStorage.getItem('prefill_child_profile_id');
+        if (prefillChildProfileId && childProfiles.length > 0) {
+          const selectedChild = childProfiles.find(
+            (c) => c.value === prefillChildProfileId
+          );
+          if (selectedChild) {
+            selectedChildProfileId = prefillChildProfileId;
+            selectedChildProfileName = selectedChild.label;
+            storyCreation.setSelectedChild(prefillChildProfileId, selectedChild.label);
+          }
+        }
+
+        // Clear prefill flags from sessionStorage
+        sessionStorage.removeItem('prefill_character_mode');
+        sessionStorage.removeItem('prefill_character_image');
+        sessionStorage.removeItem('prefill_character_name');
+        sessionStorage.removeItem('prefill_character_type');
+        sessionStorage.removeItem('prefill_special_ability');
+        sessionStorage.removeItem('prefill_character_style');
+        sessionStorage.removeItem('prefill_child_profile_id');
       }
     }
   });
@@ -264,8 +337,20 @@
     (!!selectedSpecialAbility || !!customSpecialAbility.trim()) &&
     !!selectedCharacterStyle;
 
+  // Handle back button click
+  const handleBackToStep = () => {
+    if (browser) {
+      // Clear selected child profile from sessionStorage
+      sessionStorage.removeItem("selectedChildProfileId");
+      sessionStorage.removeItem("selectedChildProfileName");
+    }
+    
+    // Navigate back to dashboard
+    goto("/dashboard");
+  };
+
   // Handle continue to next step
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Validate required fields
     if (!uploadedImageUrl) {
       uploadError = "Please upload a character image";
@@ -277,20 +362,110 @@
       return;
     }
 
-    // Update story creation store with character details
-    storyCreation.setCharacterDetails({
-      characterName,
-      characterType: selectedCharacterType as any,
-      specialAbility: customSpecialAbility || selectedSpecialAbility,
-    });
+    try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        console.error('No authenticated user found');
+        uploadError = "Please log in to continue";
+        return;
+      }
 
-    // Store style selection in the store
-    storyCreation.setCharacterStyle(
-      selectedCharacterStyle as "3d" | "cartoon" | "anime",
-    );
+      // Prepare special ability value
+      const specialAbilityValue = customSpecialAbility || selectedSpecialAbility;
 
-    // Navigate to step 2
-    goto("/create-character/2");
+      // Update story creation store with character details
+      storyCreation.setCharacterDetails({
+        characterName,
+        characterType: selectedCharacterType as any,
+        specialAbility: specialAbilityValue,
+      });
+
+      // Store style selection in the store
+      storyCreation.setCharacterStyle(
+        selectedCharacterStyle as "3d" | "cartoon" | "anime",
+      );
+
+      // Save character information to sessionStorage for use in next steps
+      if (browser) {
+        sessionStorage.setItem('characterName', characterName);
+        sessionStorage.setItem('selectedCharacterType', selectedCharacterType);
+        sessionStorage.setItem('specialAbility', specialAbilityValue);
+        sessionStorage.setItem('selectedStyle', selectedCharacterStyle);
+      }
+
+      // Check if character ID exists in sessionStorage
+      const existingCharacterId = browser ? sessionStorage.getItem('characterId') : null;
+      let characterId = existingCharacterId ? parseInt(existingCharacterId) : null;
+
+      // Prepare character data
+      const characterData = {
+        user_id: currentUser.id,
+        child_profile_id: selectedChildProfileId ? parseInt(selectedChildProfileId) : null,
+        character_name: characterName,
+        character_type: selectedCharacterType as 'person' | 'animal' | 'magical_creature',
+        special_ability: specialAbilityValue || undefined,
+        character_style: selectedCharacterStyle as '3d' | 'cartoon' | 'anime',
+        original_image_url: uploadedImageUrl,
+        enhanced_images: '' // Will be updated later in step 2
+      };
+
+      // Check if character exists and update or create accordingly
+      if (characterId) {
+        // Verify character exists in database
+        const existingCharacter = await getCharacterById(characterId);
+        
+        if (existingCharacter.success && existingCharacter.data) {
+          // Character exists - update it
+          console.log('Updating existing character:', characterId, characterData);
+          const result = await updateCharacter(characterId, characterData);
+          
+          if (result.success) {
+            console.log('Character updated successfully:', result.data);
+          } else {
+            console.error('Failed to update character:', result.error);
+            // Continue anyway - character saving is not blocking
+          }
+        } else {
+          // Character ID exists but not found in DB - create new
+          console.log('Character ID not found in database, creating new character:', characterData);
+          const result = await createCharacter(characterData);
+          
+          if (result.success) {
+            console.log('Character created successfully:', result.data);
+            // Store the new character ID
+            if (result.data?.id && browser) {
+              sessionStorage.setItem('characterId', result.data.id.toString());
+            }
+          } else {
+            console.error('Failed to create character:', result.error);
+            // Continue anyway - character saving is not blocking
+          }
+        }
+      } else {
+        // No character ID - create new character
+        console.log('Creating new character:', characterData);
+        const result = await createCharacter(characterData);
+        
+        if (result.success) {
+          console.log('Character created successfully:', result.data);
+          // Store character ID for later use
+          if (result.data?.id && browser) {
+            sessionStorage.setItem('characterId', result.data.id.toString());
+          }
+        } else {
+          console.error('Failed to create character:', result.error);
+          // Continue anyway - character saving is not blocking
+        }
+      }
+
+      // Navigate to step 2
+      goto("/create-character/2");
+    } catch (error) {
+      console.error('Error in handleContinue:', error);
+      // Continue anyway
+      goto("/create-character/2");
+    }
   };
 </script>
 
@@ -300,7 +475,9 @@
       <div class="logo-img"></div>
     </div>
   </div>
-  <MobileBackBtn />
+  <div on:click={handleBackToStep} on:keydown={(e) => e.key === "Enter" && handleBackToStep()} role="button" tabindex="0">
+    <MobileBackBtn backRoute="" />
+  </div>
   <div class="frame-1410103818">
     <div class="heading">
       <div class="create-your-character">
@@ -761,7 +938,7 @@
       </div>
     </div>
     <div style="display: flex; justify-content: space-between; width: 100%;">
-      <button class="button_01" on:click={() => goto("/")}>
+      <button class="button_01" on:click={handleBackToStep}>
         <div class="arrowleft">
           <img src={arrowLeft} alt="arrowLeft" />
         </div>

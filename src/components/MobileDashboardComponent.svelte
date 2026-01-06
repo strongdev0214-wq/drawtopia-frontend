@@ -9,7 +9,9 @@
     type ChildProfile,
   } from "../lib/database/childProfiles";
   import {
+    getAllCharacters,
     getAllStoriesForParent,
+    deleteCharacter,
     type Story,
   } from "../lib/database/stories";
   import { getGiftsForUser, type Gift } from "../lib/database/gifts";
@@ -269,6 +271,19 @@
     }
   };
 
+  const fetchCharacters = async (userId: string) => {
+    try {
+      const result = await getAllCharacters(userId);
+      if (result.success && result.data) {
+        characters = result.data;
+      } else {
+        characters = [];
+      }
+    } catch (err) {
+      characters = [];
+    }
+  };
+
   const fetchStories = async (userId: string) => {
     try {
       loadingStories = true;
@@ -312,8 +327,6 @@
             }),
           )
           .filter((story) => story.id);
-
-        extractCharacters(storiesData as any[]);
       } else {
         storiesError = result.error || "Failed to fetch stories";
         stories = [];
@@ -329,39 +342,6 @@
     } finally {
       loadingStories = false;
     }
-  };
-
-  const extractCharacters = (storiesData: any[]) => {
-    const characterMap = new Map();
-    const characterBookCounts = new Map();
-    let characterIdCounter = 1;
-
-    storiesData.forEach((story: any) => {
-      if (story.character_name) {
-        const key = story.character_name.toLowerCase();
-        characterBookCounts.set(key, (characterBookCounts.get(key) || 0) + 1);
-        if (!characterMap.has(key)) {
-          characterMap.set(key, {
-            id: `char_${characterIdCounter++}`,
-            character_name: story.character_name,
-            character_type: story.character_type,
-            character_style: story.character_style,
-            special_ability: story.special_ability,
-            original_image_url: story.original_image_url || "https://placehold.co/332x225",
-            created_at: story.created_at,
-            child_profiles: story.child_profiles,
-            booksCount: 0,
-          });
-        }
-      }
-    });
-
-    characters = Array.from(characterMap.values())
-      .map((char) => ({
-        ...char,
-        booksCount: characterBookCounts.get(char.character_name.toLowerCase()) || 0,
-      }))
-      .filter((char) => char.id);
   };
 
   // Helper to convert age range to a single age for display
@@ -477,6 +457,42 @@
     console.log("Book clicked:", book);
   };
 
+  // Handle delete character
+  const handleDeleteCharacter = async (event: CustomEvent) => {
+    const character = event.detail;
+    
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete "${character.character_name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    handleBackFromPreview();
+    
+    try {
+      const userId = $user?.id;
+      if (!userId) {
+        console.error('User not authenticated');
+        return;
+      }
+      
+      const result = await deleteCharacter(character.id, userId);
+      
+      if (result.success) {
+        console.log('Character deleted successfully:', result.data);
+        
+        // Refresh character data
+        await fetchCharacters(userId);
+        await fetchStories(userId);
+      } else {
+        console.error('Failed to delete character:', result.error);
+        alert(`Failed to delete character: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting character:', error);
+      alert('An error occurred while deleting the character');
+    }
+  };
+
   // Handle view stories from child profile
   const handleViewStoriesFromChild = (event: CustomEvent) => {
     const { childId, childName } = event.detail;
@@ -522,6 +538,7 @@
         fetchChildProfiles($user.id);
         fetchStories($user.id);
         fetchGifts();
+        fetchCharacters($user.id);
       } else {
         childProfiles = [];
         stories = [];
@@ -558,9 +575,9 @@
     <MobileBookPreview
       characterName={selectedCharacter.character_name}
       characterData={selectedCharacter}
-      books={characterBooks}
       on:bookClick={handleBookClick}
       on:back={handleBackFromPreview}
+      on:deleteCharacter={handleDeleteCharacter}
     />
   {:else if activeMenu === "story-library"}
     <MobileStoryLibraryComponent
@@ -585,9 +602,6 @@
     />
   {:else if activeMenu === "characters"}
     <MobileDashboardCharactersComponent
-      {characters}
-      {loading}
-      {error}
       on:characterPreview={handleCharacterPreview}
     />
   {:else if activeMenu === "child-profiles"}

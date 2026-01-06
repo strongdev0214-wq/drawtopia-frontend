@@ -426,6 +426,7 @@
     height: 16px;
     position: relative;
     overflow: hidden;
+    filter: brightness(255) saturate(100%);
   }
 
   .eye {
@@ -451,6 +452,7 @@
     height: 16px;
     position: relative;
     overflow: hidden;
+    filter: brightness(0) saturate(100%) invert(40%) sepia(26%) saturate(1547%) hue-rotate(124deg) brightness(91%) contrast(88%);
   }
 
   .heart {
@@ -504,6 +506,10 @@
     background: #3a7ae4;
   }
 
+  .button:active {
+    background: #1e3bc7;
+  }
+
   .button_01 {
     flex: 1 1 0;
     height: 41px;
@@ -524,7 +530,7 @@
     transition: all 0.2s ease;
   }
 
-  .button_01:hover {
+  .button_01:active {
     background: #d1f7f8;
     transform: translateY(1px);
     box-shadow: 0px 3px 0px #438BFF;
@@ -550,7 +556,7 @@
     transition: all 0.2s ease;
   }
 
-  .button_02:hover {
+  .button_02:active {
     background: #d1f7f8;
     transform: translateY(1px);
     box-shadow: 0px 3px 0px #438BFF;
@@ -575,6 +581,10 @@
 
   .button_03:hover {
     background: #3a7ae4;
+  }
+
+  .button_03:active {
+    background: #1e3bc7;
   }
 
   .frame-1410104153 {

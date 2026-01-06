@@ -10,12 +10,18 @@
   import plusIcon from "../assets/Plus.svg";
   import pencilSimple from "../assets/PencilSimple.svg";
   import trash from "../assets/Trash.svg";
+  import animal from "../assets/animal.svg";
+  import monster from "../assets/monster.svg";
 
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
 
   export let characterName: string = "";
-  export let books: any[] = [];
   export let characterData: any = null;
+  let books: any[] = characterData?.stories || [];
+
+  onMount(() => {
+    console.log("characterData====================================>", characterData);
+  });
 
   const dispatch = createEventDispatcher();
 
@@ -26,12 +32,12 @@
 
   // Get book image
   const getBookImage = (book: any) => {
-    return book?.story_cover || book?.original_image_url || "https://placehold.co/361x250";
+    return book?.story_cover || book?.enhanced_images || "https://placehold.co/361x250";
   };
 
   // Get character avatar
   const getCharacterAvatar = () => {
-    return characterData?.original_image_url || characterData?.avatar || "https://placehold.co/80x80";
+    return characterData?.enhanced_images || characterData?.avatar || "https://placehold.co/80x80";
   };
 
   // Get story mode (Story Mode or Search Mode)
@@ -44,14 +50,13 @@
   };
 
   // Format date
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "Unknown";
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: '2-digit' 
-    });
+  const formatDate = (created_at: any): string => {
+    if (!books || books.length === 0) return "Never";
+    const dates = books
+      .map((book: any) => book.created_at)
+      .filter(Boolean)
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
+    return dates.length > 0 ? new Date(dates[0]).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never";
   };
 
   // Handle book click
@@ -76,6 +81,18 @@
   function handleDeleteCharacter() {
     dispatch("deleteCharacter", characterData);
   }
+
+
+    function getCharacterTypeIcon(): string | null | undefined {
+        if (characterData?.character_type === "person") {
+            return userCircle;
+        } else if (characterData?.character_type === "animal") {
+            return animal;
+        } else if (characterData?.character_type === "magical") {
+            return monster;
+        }
+        return userCircle;
+    }
 </script>
 
 <div class="sidebar">
@@ -108,9 +125,9 @@
           <div class="frame-2147227592">
             <div class="icons">
               <div class="usercircle">
-                <img src={userCircle} alt="userCircle" class="user-circle-icon">
+                <img src={getCharacterTypeIcon()} alt="userCircle" class="user-circle-icon">
               </div>
-              <div><span class="person_span">{characterData?.type || "Person"}</span></div>
+              <div><span class="person_span">{characterData?.character_type.charAt(0).toUpperCase() + characterData?.character_type.slice(1)}</span></div>
             </div>
             <div class="rectangle-261"></div>
             <div class="icons_01">
@@ -487,6 +504,12 @@
     height: 20px;
     position: relative;
     overflow: hidden;
+  }
+
+  .user-circle-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .sparkle {

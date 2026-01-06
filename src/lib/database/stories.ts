@@ -363,6 +363,58 @@ export async function getAllCharacters(parentId: string): Promise<DatabaseResult
 }
 
 /**
+ * Delete a character by ID
+ * @param characterId - The character ID to delete
+ * @param userId - The user ID for authorization
+ * @returns Promise with deletion result
+ */
+export async function deleteCharacter(characterId: string, userId: string): Promise<DatabaseResult> {
+  try {
+    // Determine backend URL
+    let backendUrl = 'https://drawtopia-backend.vercel.app'; // http://localhost:8000
+    
+    // Call Python backend API
+    const endpoint = `${backendUrl}/api/characters/${encodeURIComponent(characterId)}?user_id=${encodeURIComponent(userId)}`;
+    
+    const response = await fetch(endpoint, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      } catch (parseError) {
+        const errorText = await response.text().catch(() => '');
+        errorMessage = errorText || errorMessage;
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+
+    const data = await response.json();
+
+    return {
+      success: true,
+      data: data
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred while deleting character'
+    };
+  }
+}
+
+/**
  * Get a single story by ID
  * @param storyId - The story ID
  * @returns Promise with story data

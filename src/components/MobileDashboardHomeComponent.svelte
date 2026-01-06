@@ -217,7 +217,7 @@
             {#each characters as character (character.id)}
               <CharacterCard 
                 item={character} 
-                booksCount={character.booksCount || 0}
+                booksCount={character.stories?.length || 0}
                 on:preview={handleCharacterPreview}
               />
             {/each}

@@ -5,6 +5,7 @@
   import { user } from "../../lib/stores/auth";
   import {
     getAllStoriesForParent,
+    deleteCharacter,
     type Story,
   } from "../../lib/database/stories";
   import { supabase } from "../../lib/supabase";
@@ -485,11 +486,40 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     console.log("Edit character:", character);
   };
 
-  const handleDeleteCharacter = (event: CustomEvent) => {
+  const handleDeleteCharacter = async (event: CustomEvent) => {
     const character = event.detail;
+    
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete "${character.character_name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
     handleCharacterModalClose();
-    // TODO: Implement delete character
-    console.log("Delete character:", character);
+    
+    try {
+      const userId = $user?.id;
+      if (!userId) {
+        console.error('User not authenticated');
+        return;
+      }
+      
+      const result = await deleteCharacter(character.id, userId);
+      
+      if (result.success) {
+        console.log('Character deleted successfully:', result.data);
+        
+        // Reload the page data to reflect the changes
+        if (browser) {
+          window.location.reload();
+        }
+      } else {
+        console.error('Failed to delete character:', result.error);
+        alert(`Failed to delete character: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting character:', error);
+      alert('An error occurred while deleting the character');
+    }
   };
 
   const handleBookClick = (event: CustomEvent) => {
@@ -507,6 +537,11 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
 
   // Fetch profiles, stories, and gifts when component mounts and user is available
   onMount(() => {
+    // Clear sessionStorage on dashboard page load
+    if (browser) {
+      sessionStorage.clear();
+    }
+    
     // Check initial screen size
     checkScreenSize();
 
@@ -525,25 +560,27 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
   // Handle New Story button click from child profile component
   const handleNewStory = (event: CustomEvent) => {
     const childName = event.detail.name;
+    const childItem = event.detail.item;
 
-    // Find the selected child profile
+    // Find the selected child profile - check both name and first_name fields
     const selectedChild = childProfiles.find(
-      (child) => child.name === childName,
-    );
+      (child) => (child.name === childName || child.first_name === childName),
+    ) || childItem; // Fallback to the passed item if not found in childProfiles
 
     if (selectedChild && browser) {
-      // Store only the child profile ID for the character creation flow
-      sessionStorage.setItem(
-        "selectedChildProfileId",
-        selectedChild.id.toString(),
-      );
-      sessionStorage.setItem("selectedChildProfileName", selectedChild.name); // For display purposes
+      // Store the child profile ID and name for the character creation flow
+      const childId = selectedChild.id?.toString() || '';
+      const childDisplayName = selectedChild.first_name || selectedChild.name || childName;
+      
+      sessionStorage.setItem("selectedChildProfileId", childId);
+      sessionStorage.setItem("selectedChildProfileName", childDisplayName);
+      
+      // Update the story creation store with selected child
+      storyCreation.setSelectedChild(childId, childDisplayName);
     }
-    storyCreation.setSelectedChild(
-      selectedChild.id.toString(),
-      selectedChild.name,
-    );
-    goto("/gift/1");
+    
+    // Navigate to create-character/1 page
+    goto("/create-character/1");
   };
 </script>
 
@@ -958,7 +995,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
     >
       <CharacterDetailsModal
         character={selectedCharacter}
-        books={characterBooks}
         on:close={handleCharacterModalClose}
         on:useInNewBook={handleUseInNewBook}
         on:editCharacter={handleEditCharacter}

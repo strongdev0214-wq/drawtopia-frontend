@@ -7,6 +7,8 @@
   import eye from "../assets/BlueEye.svg";
 
   import { createEventDispatcher } from "svelte";
+  import { goto } from "$app/navigation";
+  import { browser } from "$app/environment";
 
   export let item: any;
   export let booksCount: number = 0; // Number of books using this character
@@ -24,7 +26,7 @@
       return PersonSimple;
     } else if (item.character_type === "animal") {
       return animal;
-    } else if (item.character_type === "magical_creature") {
+    } else if (item.character_type === "magical") {
       return monster;
     }
     return PersonSimple; // default
@@ -36,7 +38,7 @@
       return "Person";
     } else if (item.character_type === "animal") {
       return "Animal";
-    } else if (item.character_type === "magical_creature") {
+    } else if (item.character_type === "magical") {
       return "Magical Creature";
     }
     return "Person"; // default
@@ -49,7 +51,13 @@
 
   // Get image source
   const getImageSrc = () => {
-    return item.original_image_url || "https://placehold.co/329x310";
+    // Handle both array and string formats for enhanced_images
+    if (typeof item.enhanced_images === 'string' && item.enhanced_images) {
+      return item.enhanced_images;
+    } else if (item.original_image_url) {
+      return item.original_image_url;
+    }
+    return "https://placehold.co/329x310";
   };
 
   // Format books count text
@@ -65,8 +73,40 @@
 
   // Handle "Use in New Book" button click
   function handleUseInNewBook() {
-    // TODO: Implement navigation to create new book with this character
-    console.log("Use in new book:", item);
+    if (browser) {
+      // Get the character image URL (handle both array and string formats)
+      let imageUrl = '';
+      if (Array.isArray(item.enhanced_images) && item.enhanced_images.length > 0) {
+        imageUrl = item.enhanced_images[0];
+      } else if (typeof item.enhanced_images === 'string' && item.enhanced_images) {
+        imageUrl = item.enhanced_images;
+      } else if (item.original_image_url) {
+        imageUrl = item.original_image_url;
+      }
+      
+      // Store character ID in sessionStorage (important for update operation)
+      if (item.id) {
+        sessionStorage.setItem('characterId', item.id.toString());
+      }
+      
+      // Store character data in sessionStorage for pre-filling the form
+      sessionStorage.setItem('prefill_character_image', imageUrl);
+      sessionStorage.setItem('prefill_character_name', item.character_name || '');
+      sessionStorage.setItem('prefill_character_type', item.character_type || 'person');
+      sessionStorage.setItem('prefill_special_ability', item.special_ability || '');
+      sessionStorage.setItem('prefill_character_style', item.character_style || '3d');
+      
+      // Store child profile ID if available
+      if (item.child_profile_id) {
+        sessionStorage.setItem('prefill_child_profile_id', item.child_profile_id.toString());
+      }
+      
+      // Set a flag to indicate we're pre-filling the form
+      sessionStorage.setItem('prefill_character_mode', 'true');
+    }
+    
+    // Navigate to create character page
+    goto('/create-character/1');
   }
 
   // Handle "View Books" button click

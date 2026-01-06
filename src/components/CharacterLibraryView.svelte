@@ -23,7 +23,7 @@
     { value: "all", label: "All" },
     { value: "person", label: "Person" },
     { value: "animal", label: "Animal" },
-    { value: "magical_creature", label: "Magical" }
+    { value: "magical", label: "Magical" }
   ];
 
   // Filter characters based on search query and filter

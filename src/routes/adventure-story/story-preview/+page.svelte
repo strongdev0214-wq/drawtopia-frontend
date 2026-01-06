@@ -511,7 +511,6 @@
 
     .frame-1410104089 {
         width: 91px;
-        height: 90px;
         position: relative;
         border-radius: 4px;
     }
@@ -821,7 +820,6 @@
     }
 
     .image {
-        width: 287px;
         height: 431px;
         position: relative;
         border-radius: 12px;

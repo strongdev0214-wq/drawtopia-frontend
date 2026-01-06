@@ -1,48 +1,22 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { createEventDispatcher } from "svelte";
+  import { user } from "../lib/stores/auth";
+  import { getAllCharacters, getAllStoriesForParent } from "../lib/database/stories";
   import whitePlus from "../assets/Plus.svg";
   import UserCircle from "../assets/UserCircle.svg";
   import Sparkle from "../assets/Sparkle.svg";
   import BookBookmark from "../assets/BookBookmark.svg";
   import eye from "../assets/BlueEye.svg";
 
-  export let characters: any[] = [];
-  export let loading: boolean = false;
-  export let error: string = "";
-
   const dispatch = createEventDispatcher();
 
-  // Sample character data for demo - this would come from props in real implementation
-  let sampleCharacters = [
-    {
-      id: "char_1",
-      character_name: "Luna",
-      character_type: "person",
-      special_ability: "Can Fly",
-      booksCount: 2,
-      original_image_url: "https://placehold.co/345x310"
-    },
-    {
-      id: "char_2", 
-      character_name: "Sparkle",
-      character_type: "magical_creature",
-      special_ability: "Can Heal",
-      booksCount: 1,
-      original_image_url: "https://placehold.co/345x310"
-    },
-    {
-      id: "char_3",
-      character_name: "Captain Zoom", 
-      character_type: "animal",
-      special_ability: "Super Strength",
-      booksCount: 2,
-      original_image_url: "https://placehold.co/345x310"
-    }
-  ];
-
-  // Use sample data if no characters provided
-  $: displayCharacters = characters.length > 0 ? characters : sampleCharacters;
+  // Internal state for characters and loading
+  let characters: any[] = [];
+  let loading: boolean = false;
+  let error: string = "";
+  let charactersFetched: boolean = false;
 
   // Filter states
   let selectedFilter = "all";
@@ -53,22 +27,120 @@
     { value: "all", label: "All" },
     { value: "person", label: "Person" },
     { value: "animal", label: "Animal" },
-    { value: "magical_creature", label: "Magical" }
+    { value: "magical", label: "Magical" }
   ];
 
   // Filtered characters based on search and filter
-  $: filteredCharacters = displayCharacters.filter(character => {
-    const matchesSearch = character.character_name?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-    const matchesFilter = selectedFilter === "all" || character.character_type === selectedFilter;
-    return matchesSearch && matchesFilter;
+  $: filteredCharacters = (() => {
+    if (!characters || characters.length === 0) {
+      return [];
+    }
+    
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const hasSearch = normalizedQuery.length > 0;
+    const hasFilter = selectedFilter !== "all";
+    
+    // If no filters applied, return all characters
+    if (!hasSearch && !hasFilter) {
+      return characters;
+    }
+    
+    return characters.filter((character) => {
+      // Filter by search query
+      const matchesSearch = hasSearch
+        ? (character.character_name?.toLowerCase().includes(normalizedQuery) ?? false)
+        : true;
+
+      // Filter by character type
+      const matchesFilter = hasFilter
+        ? character.character_type === selectedFilter
+        : true;
+
+      return matchesSearch && matchesFilter;
+    });
+  })();
+
+  // Fetch characters from API and calculate books count
+  const fetchCharacters = async (userId: string) => {
+    if (!userId || loading) return;
+    
+    console.log('[MobileDashboardCharactersComponent] Fetching characters for user:', userId);
+    loading = true;
+    error = "";
+    
+    try {
+      // Fetch characters from API
+      const result = await getAllCharacters(userId);
+      if (!result.success || !result.data) {
+        error = result.error || "Failed to fetch characters";
+        characters = [];
+        console.error('[MobileDashboardCharactersComponent] Error fetching characters:', error);
+        loading = false;
+        return;
+      }
+
+      // Fetch all stories to calculate books count
+      const storiesResult = await getAllStoriesForParent(userId);
+      let storiesData: any[] = [];
+      
+      if (storiesResult.success && storiesResult.data) {
+        storiesData = Array.isArray(storiesResult.data) ? storiesResult.data : [];
+        console.log('[MobileDashboardCharactersComponent] Fetched stories:', storiesData.length);
+      }
+
+      // Calculate books count for each character
+      const characterBookCounts = new Map<string, number>();
+      
+      storiesData.forEach((story: any) => {
+        if (story.character_name) {
+          const key = story.character_name.toLowerCase();
+          characterBookCounts.set(key, (characterBookCounts.get(key) || 0) + 1);
+        }
+      });
+
+      // Add booksCount to each character
+      characters = result.data.map((character: any) => ({
+        ...character,
+        booksCount: characterBookCounts.get(character.character_name?.toLowerCase() || '') || 0
+      }));
+
+      console.log('[MobileDashboardCharactersComponent] Successfully fetched', characters.length, 'characters with books count');
+    } catch (err) {
+      error = "An error occurred while fetching characters";
+      characters = [];
+      console.error('[MobileDashboardCharactersComponent] Exception fetching characters:', err);
+    } finally {
+      loading = false;
+    }
+  };
+
+  // Fetch characters when component mounts
+  onMount(() => {
+    const unsubscribe = user.subscribe(($user) => {
+      if ($user?.id && !charactersFetched) {
+        fetchCharacters($user.id);
+        charactersFetched = true;
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   });
+
+  // Reactive statement to handle user changes
+  $: if ($user?.id && !charactersFetched) {
+    console.log('[MobileDashboardCharactersComponent] User available, fetching characters:', $user.id);
+    fetchCharacters($user.id);
+    charactersFetched = true;
+  }
 
   // Get character type display text
   function getCharacterTypeText(type: string): string {
     switch(type) {
       case "person": return "Person";
       case "animal": return "Animal"; 
-      case "magical_creature": return "Magical Creature";
+      case "magical": return "Magical Creature";
       default: return "Person";
     }
   }
@@ -169,7 +241,7 @@
       {#each filteredCharacters as character}
         <div class="card">
           <div class="frame-2147227584_01">
-            <div class="frame-2147227588_01" style="background-image: url({character.original_image_url || 'https://placehold.co/345x310'})">
+            <div class="frame-2147227588_01" style="background-image: url({character.enhanced_images || 'https://placehold.co/345x310'})">
               <div class="frame-2147227590_01">
                 <div class="book_01">
                   <img src={BookBookmark} alt="book" />
