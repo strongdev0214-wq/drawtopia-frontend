@@ -1373,17 +1373,19 @@
             {/if}
             <div class="scene-control-buttons">
               <button class="notification" aria-label="Full Screen Preview">
-                <img src={fullscreen} alt="fullscreen" />
+                <img src={fullscreen} alt="fullscreen" class="btn-icon-fullscreen" />
                 <div><span class="fullscreenpreview_span">Full Screen Preview</span></div>
               </button>
-              <button class="control-btn hint-btn" aria-label="Hint">
-                <img src={hintIcon} alt="Hint" class="btn-icon" />
-                <span>Hint ({hintsLeft} Left)</span>
-              </button>
-              <button class="control-btn zoom-btn" aria-label="Zoom">
-                <img src={zoomIcon} alt="Zoom" class="btn-icon" />
-                <span>Zoom</span>
-              </button>
+              {#if currentSceneIndex !== 0}
+                <button class="notification_01" aria-label="Hint">
+                  <img src={hintIcon} alt="Hint" class="btn-icon-hint" />
+                  <div><span class="hint3left_span">Hint ({hintsLeft} Left)</span></div>
+                </button>
+                <button class="notification_02" aria-label="Zoom">
+                  <img src={zoomIcon} alt="Zoom" class="btn-icon-zoom" />
+                  <div><span class="zoom_span">Zoom</span></div>
+                </button>
+              {/if}
             </div>
             {#if showSelection}
               <div
@@ -1421,17 +1423,19 @@
           </div>
           <div class="scene-control-buttons">
             <button class="notification" aria-label="Full Screen Preview">
-              <img src={fullscreen} alt="fullscreen" />
+              <img src={fullscreen} alt="fullscreen" class="btn-icon-fullscreen" />
               <div><span class="fullscreenpreview_span">Full Screen Preview</span></div>
             </button>
-            <button class="control-btn hint-btn" aria-label="Hint">
-              <img src={hintIcon} alt="Hint" class="btn-icon" />
-              <span>Hint ({hintsLeft} Left)</span>
-            </button>
-            <button class="control-btn zoom-btn" aria-label="Zoom">
-              <img src={zoomIcon} alt="Zoom" class="btn-icon" />
-              <span>Zoom</span>
-            </button>
+            {#if currentSceneIndex !== 0}
+              <button class="notification_01" aria-label="Hint">
+                <img src={hintIcon} alt="Hint" class="btn-icon-hint" />
+                <div><span class="hint3left_span">Hint ({hintsLeft} Left)</span></div>
+              </button>
+              <button class="notification_02" aria-label="Zoom">
+                <img src={zoomIcon} alt="Zoom" class="btn-icon-zoom" />
+                <div><span class="zoom_span">Zoom</span></div>
+              </button>
+            {/if}
           </div>
         </div>
       </div>
@@ -1440,8 +1444,10 @@
       <button
         class="preview-nav-btn"
         on:click={previousScene}
-        disabled={currentSceneIndex === 0 || isLoading || generating}>{"← Previous"}</button
-      >
+        disabled={currentSceneIndex === 0 || isLoading || generating}>
+        <img src={arrowleft} alt="Arrow Left" />
+        <span class="previousscene_span">Previous</span>
+      </button>
       <div class="preview-dots">
         {#if generatedImages.length > 0}
           {#each generatedImages as _, idx}
@@ -1449,10 +1455,16 @@
               class="preview-dot"
               class:active={currentSceneIndex === idx}
               on:click={() => goToScene(idx)}
-              aria-label={`Go to scene ${idx + 1}`}
+              aria-label={idx === 0 ? "Go to cover" : idx === 1 ? "Go to dedication" : `Go to scene ${idx - 1}`}
               disabled={generating || isLoading}
             >
-              {idx + 1}
+              {#if idx === 0}
+                <img src={coverIcon} alt="cover icon" />
+              {:else if idx === 1}
+                <img src={mailIcon} alt="dedication icon" />
+              {:else}
+                {idx - 1}
+              {/if}
             </button>
           {/each}
         {:else}
@@ -1488,15 +1500,21 @@
         on:click={handleStartScene1}
         disabled={generating || isLoading || generatedImages.length === 0}
       >
-        {isLoading 
-          ? "Loading..." 
-          : generating 
-          ? "Generating..." 
-          : currentSceneIndex === generatedImages.length - 1 
-            ? "Show Results" 
-            : currentSceneIndex === 0 
-              ? "Start Scene 1" 
-              : "Next Scene"}
+        <div class="next-scene-btn-content">
+          <span class="nextscene_span">
+            {isLoading 
+              ? "Loading..." 
+              : generating 
+              ? "Generating..." 
+              : currentSceneIndex === generatedImages.length - 1 
+                ? "Show Results" 
+                : currentSceneIndex === 0 
+                  ? "Start Scene 1" 
+                  : "Next Scene"}
+          </span>
+          <div class="ellipse-1415-btn"></div>
+          <img src={arrowleft} alt="Next" class="arrowright-btn" />
+        </div>
       </button>
     </div>
     <div class="frame-1410104203">
@@ -1505,23 +1523,19 @@
         on:click={previousScene}
         disabled={currentSceneIndex === 0 || isLoading || generating}
       >
-        <div class="arrowleft-nav">
-          <div class="vector-nav"></div>
-        </div>
-        <div class="previous"><span class="previous_span">Previous</span></div>
+        <img src={arrowleft} alt="Arrow Left" class="arrowleft-nav" />
+        <div class="previous-scene"><span class="previousscene_span">Previous</span></div>
       </button>
       <button 
         class="button_01-nav" 
         on:click={handleStartScene1}
         disabled={generating || isLoading || generatedImages.length === 0}
       >
-        <div class="next"><span class="next_span">
-          {currentSceneIndex === generatedImages.length - 1 ? "Results" : "Next"}
+        <div class="next-scene"><span class="nextscene_span">
+          {currentSceneIndex === generatedImages.length - 1 ? "Results" : "Next Scene"}
         </span></div>
-        <div class="arrowleft_01">
-          <div class="vector_01"></div>
-        </div>
-        <div class="ellipse-1415"></div>
+        <img src={arrowleft} alt="Arrow Left" class="arrowleft_01-nav" />
+        <div class="ellipse-1415-nav"></div>
       </button>
     </div>
   </div>
@@ -1655,21 +1669,10 @@
     text-align: center;
   }
 
-  .vector_01 {
-    width: 21px;
-    height: 6px;
-    left: 1.50px;
-    top: 9px;
-    position: absolute;
-    background: black;
-    border-radius: 50%;
-    box-shadow: 6px 0 0 black, 12px 0 0 black;
-  }
-
-  
   .rectangle {
     display: flex;
     height: 2px;
+    width: 100%;
     background: #d9d9d9;
   }
 
@@ -1828,20 +1831,19 @@
   }
   
   .notification {
-    height: 100%;
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding-top: 10px;
+    padding-bottom: 10px;
     padding-left: 16px;
     padding-right: 20px;
     background: #F8FAFB;
-    box-shadow: 0px 1px 4px rgba(141.80, 141.80, 141.80) inset;
+    box-shadow: 0px 1px 4px rgba(141.80, 141.80, 141.80, 0.25) inset;
     border-radius: 12px;
     outline: 1px #EDEDED solid;
     outline-offset: -1px;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 18px;
-    display: inline-flex;
+    display: flex;
     border: none;
     cursor: pointer;
     transition: all 0.2s;
@@ -1851,13 +1853,97 @@
     background: #F0F4F7;
   }
 
+  .notification_01 {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    padding-left: 18px;
+    padding-right: 24px;
+    position: relative;
+    background: #FFBE4C;
+    overflow: hidden;
+    border-radius: 12px;
+    outline: 1px #EDEDED solid;
+    outline-offset: -1px;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    display: flex;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .notification_01:hover {
+    background: #FFB03C;
+  }
+
+  .notification_02 {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    padding-left: 18px;
+    padding-right: 24px;
+    background: #F8FAFB;
+    box-shadow: 0px 1px 4px rgba(141.80, 141.80, 141.80, 0.25) inset;
+    border-radius: 12px;
+    outline: 1px #EDEDED solid;
+    outline-offset: -1px;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    display: flex;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .notification_02:hover {
+    background: #F0F4F7;
+  }
+
   .fullscreenpreview_span {
     color: #141414;
-    font-size: 16px;
-    font-family: DM Sans, sans-serif;
+    font-size: 20px;
+    font-family: Quicksand, sans-serif;
     font-weight: 600;
-    line-height: 22.40px;
+    line-height: 28px;
     word-wrap: break-word;
+  }
+
+  .hint3left_span {
+    color: #FFF6E0;
+    font-size: 20px;
+    font-family: Quicksand, sans-serif;
+    font-weight: 600;
+    line-height: 28px;
+    word-wrap: break-word;
+  }
+
+  .zoom_span {
+    color: #141414;
+    font-size: 20px;
+    font-family: Quicksand, sans-serif;
+    font-weight: 600;
+    line-height: 28px;
+    word-wrap: break-word;
+  }
+
+  .btn-icon-fullscreen {
+    width: 32px;
+    height: 32px;
+    display: block;
+  }
+
+  .btn-icon-hint {
+    width: 28px;
+    height: 28px;
+    display: block;
+    filter: brightness(0) invert(1);
+  }
+
+  .btn-icon-zoom {
+    width: 28px;
+    height: 28px;
+    display: block;
   }
 
   .preview-footer-area {
@@ -1870,15 +1956,39 @@
     gap: 28px;
   }
   .preview-nav-btn {
-    font-family: Nunito, sans-serif;
-    font-size: 13px;
+    font-family: Quicksand, sans-serif;
+    font-size: 18px;
+    font-weight: 600;
     border: none;
-    background: #f6f9fd;
-    color: #a8a8ac;
-    border-radius: 6px;
-    padding: 6px 16px;
+    background: white;
+    color: black;
+    border-radius: 20px;
+    padding: 16px 24px;
     height: 57px;
-    width: 151px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0px 4px 4px rgba(98.89, 98.89, 98.89, 0.25);
+    outline: 1px #EDEDED solid;
+    outline-offset: -1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .preview-nav-btn:hover:not(:disabled) {
+    background: #f5f7fa;
+  }
+
+  .preview-nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .preview-nav-btn img {
+    width: 20px;
+    height: 20px;
+    display: block;
   }
   .preview-dots {
     display: flex;
@@ -1901,10 +2011,7 @@
     color: #727272;
     transition: all 0.2s;
   }
-  .preview-dot:hover:not(:disabled) {
-    background: #e6ebf3;
-    transform: translateY(-2px);
-  }
+  
   .preview-dot.active {
     background: #144be1;
     color: white;
@@ -1914,6 +2021,14 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .preview-dot img {
+    width: 24px;
+    height: 24px;
+    display: block;
+  }
+  .preview-dot.active img {
+    filter: brightness(0) invert(1);
+  }
   
   .preview-start-btn {
     font-family: Quicksand, sans-serif;
@@ -1921,15 +2036,15 @@
     background: #438bff;
     font-weight: 600;
     border: none;
-    border-radius: 9px;
-    font-size: 15px;
-    padding: 10px 28px;
-    min-width: 122px;
-    box-shadow: 0 1.5px 6px #438bff22;
+    border-radius: 12px;
+    font-size: 18px;
+    padding: 16px 24px;
+    min-width: 159px;
     cursor: pointer;
     transition: background 0.18s;
     height: 57px;
-    width: 159px;
+    position: relative;
+    overflow: hidden;
   }
   .preview-start-btn:hover:not(:disabled) {
     background: #2566c9;
@@ -1937,6 +2052,50 @@
   .preview-start-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .next-scene-btn-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .nextscene_span {
+    color: white;
+    font-size: 18px;
+    font-family: Quicksand, sans-serif;
+    font-weight: 600;
+    line-height: 25.20px;
+    word-wrap: break-word;
+    text-align: center;
+  }
+
+  .next-scene {
+    text-align: center;
+  }
+
+  .ellipse-1415-btn {
+    width: 248px;
+    height: 114px;
+    position: absolute;
+    left: -46px;
+    top: 0;
+    background: radial-gradient(ellipse 42.11% 42.11% at 50.00% 52.94%, white 0%, rgba(255, 255, 255, 0) 100%);
+    border-radius: 9999px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .arrowright-btn {
+    width: 20px;
+    height: 20px;
+    display: block;
+    transform: rotate(180deg);
+    z-index: 2;
+    filter: brightness(0) invert(1);
   }
 
   /* Generating state */
@@ -2125,52 +2284,6 @@
     z-index: 10;
     pointer-events: auto;
     justify-content: center;
-  }
-
-  .control-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    border: 1px solid #e6e6e6;
-    background: white;
-    font-family: Nunito, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #141414;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    white-space: nowrap;
-  }
-
-  .control-btn:hover {
-    background: #f5f7fa;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    transform: translateY(-1px);
-  }
-
-  .control-btn .btn-icon {
-    width: 18px;
-    height: 18px;
-    display: block;
-  }
-
-  .hint-btn {
-    background: linear-gradient(180deg, #ff9500 0%, #ff7a00 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 2px 4px rgba(255, 149, 0, 0.3);
-  }
-
-  .hint-btn:hover {
-    background: linear-gradient(180deg, #ff8500 0%, #ff6a00 100%);
-    box-shadow: 0 4px 8px rgba(255, 149, 0, 0.4);
-  }
-
-  .hint-btn .btn-icon {
-    filter: brightness(0) invert(1);
   }
 
   /* Found Luna Modal */
@@ -2364,73 +2477,57 @@
 
   /* Navigation Button Set Styles */
   .frame-1410104203 {
+    width: 100%;
+    height: 100%;
+    justify-content: space-between;
+    align-items: center;
     display: none;
   }
 
-  .vector-nav {
-    width: 15px;
-    height: 12.50px;
-    left: 2.50px;
-    top: 3.75px;
-    position: absolute;
-    background: black;
-    clip-path: polygon(0 50%, 35% 0, 35% 25%, 100% 25%, 100% 75%, 35% 75%, 35% 100%);
-  }
-
-  .previous_span {
+  .previousscene_span {
     color: black;
-    font-size: 16px;
-    font-family: DM Sans, sans-serif;
+    font-size: 18px;
+    font-family: Quicksand, sans-serif;
     font-weight: 600;
-    line-height: 22.40px;
+    line-height: 25.20px;
     word-wrap: break-word;
   }
 
-  .previous {
+  .previous-scene {
     text-align: center;
   }
 
-  .next_span {
+  .nextscene_span {
     color: white;
-    font-size: 16px;
-    font-family: DM Sans, sans-serif;
+    font-size: 18px;
+    font-family: Quicksand, sans-serif;
     font-weight: 600;
-    line-height: 22.40px;
+    line-height: 25.20px;
     word-wrap: break-word;
   }
 
-  .next {
+  .next-scene {
     text-align: center;
   }
 
-  .vector_01 {
-    width: 15px;
-    height: 12.50px;
-    left: 2.50px;
-    top: 3.75px;
-    position: absolute;
-    background: white;
-    clip-path: polygon(0 50%, 35% 0, 35% 25%, 100% 25%, 100% 75%, 35% 75%, 35% 100%);
-  }
-
-  .ellipse-1415 {
+  .ellipse-1415-nav {
     width: 248px;
     height: 114px;
-    left: -42.50px;
-    top: 13.20px;
+    left: -46px;
+    top: 25px;
     position: absolute;
     background: radial-gradient(ellipse 42.11% 42.11% at 50.00% 52.94%, white 0%, rgba(255, 255, 255, 0) 100%);
     border-radius: 9999px;
   }
 
   .arrowleft-nav {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     position: relative;
     overflow: hidden;
   }
 
-  .arrowleft_01 {
+  .arrowleft_01-nav {
     width: 20px;
     height: 20px;
     position: relative;
@@ -2440,14 +2537,14 @@
 
   .button-nav {
     flex: 1 1 0;
-    height: 48px;
+    height: 54px;
     padding-left: 24px;
     padding-right: 24px;
     padding-top: 16px;
     padding-bottom: 16px;
     box-shadow: 0px 4px 4px rgba(98.89, 98.89, 98.89, 0.25);
     border-radius: 20px;
-    outline: 1px #EDEDED solid;
+    outline: 1px #DCDCDC solid;
     outline-offset: -1px;
     justify-content: center;
     align-items: center;
@@ -2470,18 +2567,18 @@
 
   .button_01-nav {
     flex: 1 1 0;
-    height: 48px;
-    padding-left: 24px;
-    padding-right: 24px;
+    height: 54px;
+    padding-left: 20px;
+    padding-right: 20px;
     padding-top: 16px;
     padding-bottom: 16px;
     position: relative;
     background: #438BFF;
     overflow: hidden;
-    border-radius: 20px;
+    border-radius: 12px;
     justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     display: flex;
     border: none;
     cursor: pointer;
@@ -2551,6 +2648,7 @@
 
     .preview-header-title {
       font-size: 24px;
+      width: 100%;
     }
 
     .scene-image-container {
@@ -2628,6 +2726,7 @@
       width: 70%;
       text-align: center;
       margin: auto;
+      font-size: 24px;
     }
 
     .preview-header-note {
@@ -2639,10 +2738,26 @@
     .frame-1410104203 {
       width: 100%;
       height: 100%;
-      justify-content: center;
+      justify-content: space-between;
       align-items: center;
       gap: 12px;
-      display: inline-flex;
+      display: flex;
+    }
+
+    .button-nav,
+    .button_01-nav {
+      font-size: 16px;
+    }
+
+    .previousscene_span,
+    .nextscene_span {
+      font-size: 16px;
+      line-height: 22.40px;
+    }
+
+    .arrowleft_01-nav {
+      transform: rotate(180deg);
+      filter: brightness(0) invert(1);
     }
 
     .preview-dots-container {
@@ -2650,6 +2765,11 @@
       flex-direction: row;
       gap: 4px;
       margin: auto;
+    }
+
+    .preview-dots {
+      justify-content: center;
+      align-items: center;
     }
 
     .notification {
@@ -2666,11 +2786,25 @@
       font-size: 14px;
     }
 
-    .control-btn {
-      padding: 8px 12px;
-      font-size: 13px;
+    .nextscene_span {
+      font-size: 14px;
+      line-height: 20px;
+    }
+
+    .notification,
+    .notification_01,
+    .notification_02 {
       width: 100%;
-      height: 50px;
+      height: auto;
+      min-height: 50px;
+      justify-content: center;
+    }
+
+    .fullscreenpreview_span,
+    .hint3left_span,
+    .zoom_span {
+      font-size: 16px;
+      line-height: 24px;
     }
 
     .found-modal-container {

@@ -11,7 +11,7 @@
   import { browser } from "$app/environment";
 
   export let item: any;
-  export let booksCount: number = 0; // Number of books using this character
+  $: booksCount = item.stories.length || 0; // Number of books using this character
 
   const dispatch = createEventDispatcher();
 

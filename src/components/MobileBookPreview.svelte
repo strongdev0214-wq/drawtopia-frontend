@@ -37,7 +37,7 @@
 
   // Get character avatar
   const getCharacterAvatar = () => {
-    return characterData?.enhanced_images || characterData?.avatar || "https://placehold.co/80x80";
+    return characterData?.enhanced_images || characterData?.original_image_url || "https://placehold.co/80x80";
   };
 
   // Get story mode (Story Mode or Search Mode)

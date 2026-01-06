@@ -3,6 +3,8 @@
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { get } from 'svelte/store';
+  import { auth } from '../../../lib/stores/auth';
   import { getStoryById } from '../../../lib/database/stories';
   import logo from "../../../assets/logo.png";
   import timeIcon from "../../../assets/redtimeicon.svg";
@@ -38,6 +40,15 @@
   let storyId: string | null = null;
   let storyTitle = "Adventure Complete!";
   let characterName = "Luna";
+  let isDownloading = false;
+  let downloadError = "";
+
+  // API Base URL
+  const API_BASE_URL = "https://drawtopia-backend.vercel.app";
+
+  $: if (browser) {
+    storyId = $page.url.searchParams.get('storyId');
+  }
 
   // Scene titles based on world (matching intersearch/1)
   const sceneTitles: { [key: string]: string[] } = {
@@ -270,8 +281,13 @@
   }
 
   function handlePlayAgain() {
-    // Navigate back to intersearch page to start a new adventure
-    goto('/intersearch');
+    // Navigate to intersearch/1 with current story ID to replay the adventure
+    if (storyId) {
+      goto(`/intersearch/1?storyId=${storyId}`);
+    } else {
+      // If no storyId available, go to intersearch to start new
+      goto('/intersearch');
+    }
   }
   
   function handleRetry() {
@@ -279,6 +295,82 @@
       window.location.reload();
     } else {
       goto('/intersearch');
+    }
+  }
+
+  async function handleDownloadPDF() {
+    if (!storyId) {
+      downloadError = "No story ID available for download";
+      setTimeout(() => downloadError = "", 3000);
+      return;
+    }
+
+    if (isDownloading) return;
+
+    try {
+      isDownloading = true;
+      downloadError = "";
+
+      // Get auth token
+      const authState = get(auth);
+      if (!authState.session?.access_token) {
+        downloadError = "Please log in to download the PDF";
+        setTimeout(() => downloadError = "", 3000);
+        return;
+      }
+
+      console.log(`Generating/fetching PDF for story ${storyId}...`);
+
+      // Step 1: Call generate-pdf endpoint to get/generate the PDF URL
+      const response = await fetch(`${API_BASE_URL}/api/books/${storyId}/generate-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authState.session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to generate PDF' }));
+        throw new Error(errorData.detail || `Failed to generate PDF: ${response.statusText}`);
+      }
+
+      // Get the JSON response with pdf_url
+      const data = await response.json();
+      
+      if (!data.success || !data.pdf_url) {
+        throw new Error(data.message || 'PDF URL not available');
+      }
+
+      console.log(`PDF URL received: ${data.pdf_url}`);
+
+      // Step 2: Download the PDF from the URL
+      const pdfResponse = await fetch(data.pdf_url);
+      if (!pdfResponse.ok) {
+        throw new Error('Failed to download PDF from storage');
+      }
+
+      const blob = await pdfResponse.blob();
+      
+      // Create a download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${storyTitle.replace(/[^a-z0-9]/gi, '_')}_adventure.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      console.log('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      downloadError = error instanceof Error ? error.message : 'Failed to download PDF';
+      setTimeout(() => downloadError = "", 5000);
+    } finally {
+      isDownloading = false;
     }
   }
 </script>
@@ -392,16 +484,35 @@
     </div>
 
     <div class="actions">
-      <div class="button" on:click={handlePlayAgain} style="cursor:pointer;">
+      <div 
+        class="button" 
+        role="button"
+        tabindex="0"
+        on:click={handlePlayAgain}
+        on:keydown={(e) => e.key === 'Enter' && handlePlayAgain()}
+        style="cursor:pointer;"
+      >
         <div class="arrowclockwise">
           <img src={arrowclockwise} alt="Arrow Clockwise" />
         </div>
         <div class="play-again"><span class="playagain_span">Play Again</span></div>
         <div class="ellipse-1415"></div>
       </div>
-      <div class="button download-pdf-btn" style="cursor:pointer;">
+      <div 
+        class="button download-pdf-btn" 
+        class:downloading={isDownloading}
+        role="button"
+        tabindex="0"
+        on:click={handleDownloadPDF}
+        on:keydown={(e) => e.key === 'Enter' && handleDownloadPDF()}
+        style="cursor:pointer; {isDownloading ? 'opacity: 0.6; pointer-events: none;' : ''}"
+      >
         <img src={downloadSimple} alt="Download Simple" class="downloadsimple">
-        <div class="download-pdf"><span class="downloadpdf_span">Download PDF</span></div>
+        <div class="download-pdf">
+          <span class="downloadpdf_span">
+            {isDownloading ? 'Downloading...' : 'Download PDF'}
+          </span>
+        </div>
       </div>
       <div class="notification" style="cursor:pointer;">
         <div class="sharenetwork">
@@ -411,6 +522,10 @@
       </div>
       <button class="btn go-home" on:click={handleGoHome}>Go Home</button>
     </div>
+    
+    {#if downloadError}
+      <div class="error-message">{downloadError}</div>
+    {/if}
   </div>
   {/if}
 </div>
@@ -858,6 +973,35 @@
     font-weight: 600;
     line-height: 22.40px;
     word-wrap: break-word;
+  }
+
+  /* Error message styles */
+  .error-message {
+    background: #fee;
+    border: 1px solid #fcc;
+    color: #c33;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: Nunito, sans-serif;
+    font-size: 14px;
+    text-align: center;
+    margin-top: 12px;
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Downloading state animation */
+  .download-pdf-btn.downloading .downloadsimple {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 </style>
 

@@ -241,13 +241,13 @@
       {#each filteredCharacters as character}
         <div class="card">
           <div class="frame-2147227584_01">
-            <div class="frame-2147227588_01" style="background-image: url({character.enhanced_images || 'https://placehold.co/345x310'})">
+            <div class="frame-2147227588_01" style="background-image: url({character.enhanced_images || character.original_image_url || 'https://placehold.co/345x310'})">
               <div class="frame-2147227590_01">
                 <div class="book_01">
                   <img src={BookBookmark} alt="book" />
                 </div>
                 <div>
-                  <span class="usedinbooks_span">{getBooksCountText(character.booksCount || 0)}</span>
+                  <span class="usedinbooks_span">{getBooksCountText(character.stories.length || 0)}</span>
                 </div>
               </div>
             </div>

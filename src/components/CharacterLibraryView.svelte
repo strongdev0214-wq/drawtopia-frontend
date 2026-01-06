@@ -223,7 +223,6 @@
       {#each filteredCharacters as character (character.id || character.character_name)}
         <CharacterCard 
           item={character} 
-          booksCount={character.booksCount || 0}
           on:preview={handleCharacterPreview}
         />
       {/each}

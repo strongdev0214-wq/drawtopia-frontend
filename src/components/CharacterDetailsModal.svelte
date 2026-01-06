@@ -70,7 +70,7 @@
 
   // Get image source
   const getImageSrc = () => {
-    return character?.enhanced_images || "https://placehold.co/125x127";
+    return character?.enhanced_images || character?.original_image_url || "https://placehold.co/125x127";
   };
 
   // Format date
