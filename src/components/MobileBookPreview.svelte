@@ -20,7 +20,7 @@
   let books: any[] = characterData?.stories || [];
 
   onMount(() => {
-    console.log("characterData====================================>", characterData);
+    // console.log("characterData====================================>", characterData);
   });
 
   const dispatch = createEventDispatcher();

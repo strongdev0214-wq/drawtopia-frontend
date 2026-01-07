@@ -144,6 +144,7 @@
       <div class="logo-text-full">
         <img src={logo} alt="Drawtopia" class="logo-img" />
       </div>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="x" on:click={handleClose} role="button" tabindex="0">
         <img src={X} alt="Close" class="vector" />
       </div>
@@ -218,6 +219,7 @@
     </div>
     <div class="card_01">
       {#each books as book (book.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="frame-2147227596" on:click={() => handleBookClick(book)} role="button" tabindex="0">
           <div class="frame-2147227584_01">
             <img class="frame-2147227588_01" src={book.story_cover || book.original_image_url || "https://placehold.co/224x223"} alt={book.story_title || "Book"} />
@@ -246,6 +248,7 @@
 
   <div class="frame-1410103860">
     <div class="frame-2147227580">
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="button" on:click={handleUseInNewBook} role="button" tabindex="0">
         <div class="plus">
           <img src={Plus} alt="plus" class="vector_09" />
@@ -253,6 +256,7 @@
         <div class="use-in-new-book"><span class="useinnewbook_span">Use in New Book</span></div>
         <div class="ellipse-1415"></div>
       </div>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="button_01" on:click={handleEditCharacter} role="button" tabindex="0">
         <div class="pencilsimple">
           <img src={PencilSimple} alt="edit" class="vector_10" />
@@ -260,6 +264,7 @@
         <div class="edit-character"><span class="editcharacter_span">Edit Character</span></div>
       </div>
     </div>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="button_02" on:click={handleDeleteCharacter} role="button" tabindex="0">
       <div class="trash">
         <img src={Trash} alt="delete" class="vector_11" />
@@ -274,28 +279,6 @@
     width: 216px;
     height: 40.37px;
     object-fit: contain;
-  }
-
-  .drawtopia {
-    width: 216px;
-    height: 40.37px;
-    left: 0px;
-    top: 0px;
-    position: absolute;
-    background: radial-gradient(ellipse 50.00% 50.00% at 50.00% 50.00%, #0FE3EF 44%, #438BFF 100%);
-    box-shadow: 0px 0.6032477617263794px 1.8097431659698486px #871FFF inset;
-  }
-
-  .subtract {
-    width: 30.16px;
-    height: 30.16px;
-    left: 129.13px;
-    top: 1.94px;
-    position: absolute;
-    transform: rotate(4deg);
-    transform-origin: top left;
-    background: radial-gradient(ellipse 50.00% 50.00% at 50.00% 50.00%, #0FE3EF 44%, #438BFF 100%);
-    box-shadow: 0px 0.6032479405403137px 1.8097436428070068px #871FFF inset;
   }
 
   .vector {
@@ -503,46 +486,6 @@
     background: #EDEDED;
   }
 
-  .frame-2147227588_02 {
-    flex: 1 1 0;
-    height: 223px;
-    position: relative;
-    background: #F6F6F6;
-    border-radius: 12px;
-    object-fit: cover;
-    width: 100%;
-  }
-
-  .whereisluna_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 22.40px;
-    word-wrap: break-word;
-  }
-
-  .vector_08 {
-    width: 17.50px;
-    height: 16.88px;
-    object-fit: contain;
-  }
-
-  .searchmode_span {
-    color: #141414;
-    font-size: 14px;
-    font-family: DM Sans;
-    font-weight: 400;
-    line-height: 19.60px;
-    word-wrap: break-word;
-  }
-
-  .rectangle-261_04 {
-    align-self: stretch;
-    height: 1px;
-    background: #EDEDED;
-  }
-
   .vector_09 {
     width: 15px;
     height: 15px;
@@ -742,27 +685,6 @@
     justify-content: center;
   }
 
-  .frame-2147227584_02 {
-    align-self: stretch;
-    border-radius: 20px;
-    outline: 1px #EDEDED solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 10px;
-    display: inline-flex;
-  }
-
-  .bookopenuser_01 {
-    width: 20px;
-    height: 20px;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   .plus {
     width: 20px;
     height: 20px;
@@ -848,13 +770,6 @@
   }
 
   .icons_06 {
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .icons_07 {
     justify-content: flex-start;
     align-items: center;
     gap: 8px;
@@ -967,14 +882,6 @@
     display: inline-flex;
   }
 
-  .frame-2147227593_01 {
-    align-self: stretch;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
-    display: inline-flex;
-  }
-
   .frame-2147227580 {
     justify-content: flex-end;
     align-items: center;
@@ -992,15 +899,6 @@
   }
 
   .frame-2147227594_01 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
-    display: flex;
-  }
-
-  .frame-2147227594_02 {
     align-self: stretch;
     flex-direction: column;
     justify-content: flex-start;
@@ -1034,15 +932,6 @@
     display: flex;
   }
 
-  .heading_02 {
-    width: 224px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
-    display: flex;
-  }
-
   .card {
     align-self: stretch;
     background: white;
@@ -1065,14 +954,6 @@
 
   .frame-2147227596:hover {
     opacity: 0.8;
-  }
-
-  .frame-2147227597 {
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 12px;
-    display: inline-flex;
   }
 
   .frame-2147227593 {

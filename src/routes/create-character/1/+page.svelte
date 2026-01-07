@@ -129,22 +129,25 @@
         // Pre-fill special ability
         const prefillAbility = sessionStorage.getItem('prefill_special_ability');
         if (prefillAbility) {
-          // Check if it's one of the predefined options
-          const isCustomAbility = !specialAbilityOptions.some(
-            opt => opt.label.toLowerCase() === prefillAbility.toLowerCase()
+          // Check if it's one of the predefined options (check both value and label)
+          const matchingOption = specialAbilityOptions.find(
+            opt => opt.value === prefillAbility || 
+                   opt.label.toLowerCase() === prefillAbility.toLowerCase()
           );
           
-          if (isCustomAbility) {
-            customSpecialAbility = prefillAbility;
+          if (matchingOption) {
+            // It's a predefined option
+            selectedSpecialAbility = matchingOption.value;
           } else {
-            // Find the matching option value
-            const matchingOption = specialAbilityOptions.find(
-              opt => opt.label.toLowerCase() === prefillAbility.toLowerCase()
-            );
-            if (matchingOption) {
-              selectedSpecialAbility = matchingOption.value;
-            }
+            // It's a custom ability
+            customSpecialAbility = prefillAbility;
           }
+          
+          console.log('Prefilled special ability:', { 
+            prefillAbility, 
+            matchingOption: matchingOption?.label, 
+            isCustom: !matchingOption 
+          });
         }
 
         // Pre-fill character style

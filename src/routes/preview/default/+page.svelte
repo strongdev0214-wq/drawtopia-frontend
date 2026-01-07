@@ -32,6 +32,8 @@
   let storyPages: Array<{ pageNumber: number; text: string }> = [];
   let currentSceneIndex = 0;
   const totalScenes = 5;
+  let viewMode: 'one-page' | 'two-page' = 'two-page'; // Default to two-page view
+  let isFullscreen = false;
   
   let storyTitle = "Luna's Adventure";
   let pagesRead = 0;
@@ -565,6 +567,50 @@
   $: currentPageText = storyPages.length > 0 && currentSceneIndex > 0 && (currentSceneIndex - 1) < storyPages.length
     ? storyPages[currentSceneIndex - 1].text
     : '';
+  
+  // Toggle fullscreen mode
+  function toggleFullscreen() {
+    if (!browser) return;
+    
+    const elem = document.documentElement;
+    
+    if (!document.fullscreenElement) {
+      // Enter fullscreen
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().then(() => {
+          isFullscreen = true;
+          console.log('[fullscreen] Entered fullscreen mode');
+        }).catch(err => {
+          console.error('[fullscreen] Error entering fullscreen:', err);
+        });
+      }
+    } else {
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen().then(() => {
+          isFullscreen = false;
+          console.log('[fullscreen] Exited fullscreen mode');
+        }).catch(err => {
+          console.error('[fullscreen] Error exiting fullscreen:', err);
+        });
+      }
+    }
+  }
+  
+  // Listen for fullscreen changes (user pressing ESC, etc.)
+  onMount(() => {
+    if (browser) {
+      const handleFullscreenChange = () => {
+        isFullscreen = !!document.fullscreenElement;
+      };
+      
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      
+      return () => {
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      };
+    }
+  });
 </script>
 
 <svelte:window on:keydown={(e) => {
@@ -654,102 +700,128 @@
           <div class="rectangle-35"></div>
           <div class="frame-1410104054">
             <div class="view-option">
-              <div class="button_view">
+              <div 
+                class="button_view"
+                class:active={viewMode === 'one-page'}
+                role="button"
+                tabindex="0"
+                on:click={() => viewMode = 'one-page'}
+                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (viewMode = 'one-page')}
+              >
                 <div class="one-page-view">
                   <span class="one-pageview_span">One-page view</span>
                 </div>
               </div>
-              <div class="button_view_01">
+              <div 
+                class="button_view_01"
+                class:active={viewMode === 'two-page'}
+                role="button"
+                tabindex="0"
+                on:click={() => viewMode = 'two-page'}
+                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (viewMode = 'two-page')}
+              >
                 <div class="two-page-view">
                   <span class="two-pageview_span">Two-page view</span>
                 </div>
               </div>
             </div>
-            <div class="frame-1410104106">
-              <div class="book-container">
-                {#if isLoading}
-                  <!-- Loading state -->
-                  <div class="loading-container">
-                    <div class="loading-spinner"></div>
-                    <p>Loading story...</p>
-                  </div>
-                {:else if loadError}
-                  <!-- Error state -->
-                  <div class="error-container">
-                    <p class="error-message">Error: {loadError}</p>
-                    <button class="retry-button" on:click={() => window.location.reload()}>Retry</button>
-                  </div>
-                {:else if storyScenes.length > 0}
-                  {#if currentSceneIndex === 0}
-                    <!-- Cover: Single image display -->
-                    <div class="cover-image-container">
-                      <div class="image cover-image">
-                        <img
-                          src={storyScenes[currentSceneIndex]}
-                          alt="Story Cover"
-                          class="scene-main-image cover-main-image"
-                          draggable="false"
-                        />
-                        <div class="inner-shadow"></div>
-                      </div>
+            <div class="book-container-wrapper">
+              <div class="frame-1410104106">
+                <div class="book-container">
+                  {#if isLoading}
+                    <!-- Loading state -->
+                    <div class="loading-container">
+                      <div class="loading-spinner"></div>
+                      <p>Loading story...</p>
                     </div>
+                  {:else if loadError}
+                    <!-- Error state -->
+                    <div class="error-container">
+                      <p class="error-message">Error: {loadError}</p>
+                      <button class="retry-button" on:click={() => window.location.reload()}>Retry</button>
+                    </div>
+                  {:else if storyScenes.length > 0}
+                    {#if currentSceneIndex === 0}
+                      <!-- Cover: Single image display -->
+                      <div class="cover-image-container">
+                        <div class="image cover-image">
+                          <img
+                            src={storyScenes[currentSceneIndex]}
+                            alt="Story Cover"
+                            class="scene-main-image cover-main-image"
+                            draggable="false"
+                          />
+                          <div class="inner-shadow"></div>
+                        </div>
+                      </div>
+                    {:else}
+                      <!-- Scenes: Split into left and right halves -->
+                      <div class="mobile-image-split">
+                        <div class="mobile-image-half mobile-image-left">
+                          <div class="image">
+                            <img
+                              src={storyScenes[currentSceneIndex]}
+                              alt={`Scene ${currentSceneIndex} - Left`}
+                              class="scene-main-image scene-image-left"
+                              draggable="false"
+                            />
+                            <div class="frame-1410104055">
+                              <div class="tag">
+                                <div>
+                                  <span class="freepreviewpages_span"
+                                    >Free preview Pages</span
+                                  >
+                                </div>
+                              </div>
+                            </div>
+                            <div class="inner-shadow"></div>
+                          </div>
+                        </div>
+                        <div class="mobile-image-half mobile-image-right">
+                          <div class="image_01">
+                            <img
+                              src={storyScenes[currentSceneIndex]}
+                              alt={`Scene ${currentSceneIndex} - Right`}
+                              class="scene-main-image scene-image-right"
+                              draggable="false"
+                            />
+                            <div class="frame-1410104055_01">
+                              <div class="tag_01">
+                                <div>
+                                  <span class="freepreviewpages_01_span"
+                                    >Free preview Pages</span
+                                  >
+                                </div>
+                              </div>
+                            </div>
+                            <div class="inner-shadow"></div>
+                          </div>
+                        </div>
+                      </div>
+                    {/if}
                   {:else}
-                    <!-- Scenes: Split into left and right halves -->
-                    <div class="mobile-image-split">
-                      <div class="mobile-image-half mobile-image-left">
-                        <div class="image">
-                          <img
-                            src={storyScenes[currentSceneIndex]}
-                            alt={`Scene ${currentSceneIndex} - Left`}
-                            class="scene-main-image scene-image-left"
-                            draggable="false"
-                          />
-                          <div class="frame-1410104055">
-                            <div class="tag">
-                              <div>
-                                <span class="freepreviewpages_span"
-                                  >Free preview Pages</span
-                                >
-                              </div>
-                            </div>
-                          </div>
-                          <div class="inner-shadow"></div>
-                        </div>
-                      </div>
-                      <div class="mobile-image-half mobile-image-right">
-                        <div class="image_01">
-                          <img
-                            src={storyScenes[currentSceneIndex]}
-                            alt={`Scene ${currentSceneIndex} - Right`}
-                            class="scene-main-image scene-image-right"
-                            draggable="false"
-                          />
-                          <div class="frame-1410104055_01">
-                            <div class="tag_01">
-                              <div>
-                                <span class="freepreviewpages_01_span"
-                                  >Free preview Pages</span
-                                >
-                              </div>
-                            </div>
-                          </div>
-                          <div class="inner-shadow"></div>
-                        </div>
-                      </div>
+                    <!-- No scenes available -->
+                    <div class="no-content-container">
+                      <p>No story scenes available</p>
                     </div>
                   {/if}
-                {:else}
-                  <!-- No scenes available -->
-                  <div class="no-content-container">
-                    <p>No story scenes available</p>
-                  </div>
-                {/if}
+                </div>
               </div>
-            </div>
-            <div class="notification">
-              <img src={CornersOut} alt="corners" />
-              <div>
-                <span class="fullscreenpreview_span">Full Screen Preview</span>
+              <div class="notification-wrapper">
+                <div 
+                  class="notification"
+                  role="button"
+                  tabindex="0"
+                  on:click={toggleFullscreen}
+                  on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleFullscreen()}
+                >
+                  <img src={CornersOut} alt="corners" />
+                  <div>
+                    <span class="fullscreenpreview_span">
+                      {isFullscreen ? 'Exit Full Screen' : 'Full Screen Preview'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="frame-1410104061">
@@ -872,11 +944,11 @@
                       class:active={currentSceneIndex === idx}
                       on:click={() => goToScene(idx)}
                       on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goToScene(idx)}
-                      class:locked={idx > 1}
+                      class:locked={idx > 1 && isFreePlan && !isPurchased}
                       role="button" 
                       tabindex="0"
                     >
-                      <div class="text-1"><span class="f_span">{idx}</span></div>
+                      <div class="text-1"><span class="f_span">{idx-1}</span></div>
                     </div>
                   {/if}
                 {/each}
@@ -1356,6 +1428,18 @@
     align-items: center;
     gap: 18px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .notification:hover {
+    background: #e7f3ff;
+    outline-color: #438bff;
+    transform: translateY(-1px);
+  }
+  
+  .notification:active {
+    transform: translateY(0);
   }
 
   .button_02 {
@@ -1633,12 +1717,17 @@
     display: inline-flex;
   }
   .one-pageview_span {
-    color: white;
+    color: #666d80;
     font-size: 18px;
     font-family: Quicksand;
     font-weight: 600;
     line-height: 25.2px;
     word-wrap: break-word;
+    transition: color 0.2s ease;
+  }
+  
+  .button_view.active .one-pageview_span {
+    color: white;
   }
 
   .one-page-view {
@@ -1646,12 +1735,17 @@
   }
 
   .two-pageview_span {
-    color: white;
+    color: #666d80;
     font-size: 18px;
     font-family: Quicksand;
     font-weight: 600;
     line-height: 25.2px;
     word-wrap: break-word;
+    transition: color 0.2s ease;
+  }
+  
+  .button_view_01.active .two-pageview_span {
+    color: white;
   }
 
   .two-page-view {
@@ -1754,6 +1848,16 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .button_view:hover:not(.active) {
+    background: #a8b5d0;
+  }
+  
+  .button_view.active {
+    background: #438bff;
   }
 
   .button_view_01 {
@@ -1761,12 +1865,22 @@
     padding-right: 24px;
     padding-top: 16px;
     padding-bottom: 16px;
-    background: #438bff;
+    background: #c1c7d0;
     border-radius: 20px;
     justify-content: center;
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .button_view_01:hover:not(.active) {
+    background: #a8b5d0;
+  }
+  
+  .button_view_01.active {
+    background: #438bff;
   }
 
   .tag {
@@ -1853,22 +1967,6 @@
     gap: 10px;
     display: inline-flex;
     position: relative;
-  }
-
-  .notification {
-    padding-top: 12px;
-    padding-bottom: 12px;
-    padding-left: 16px;
-    padding-right: 20px;
-    background: #f8fafb;
-    box-shadow: 0px 1px 4px rgba(141.8, 141.8, 141.8, 0.25) inset;
-    border-radius: 12px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 18px;
-    display: inline-flex;
   }
 
   .frame-1410104056 {
@@ -2041,6 +2139,23 @@
     align-items: center;
     gap: 12px;
     display: inline-flex;
+  }
+
+  .book-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .book-container-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 50px;
+  }
+
+  .notification-wrapper {
+    margin: auto;
   }
 
   .frame-1410104106 {
@@ -2289,7 +2404,6 @@
       width: 100%;
     }
     .notification {
-      width: 100%;
       justify-content: center;
     }
     .mobile-button-container {

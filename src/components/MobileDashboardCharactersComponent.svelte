@@ -4,11 +4,8 @@
   import { createEventDispatcher } from "svelte";
   import { user } from "../lib/stores/auth";
   import { getAllCharacters, getAllStoriesForParent } from "../lib/database/stories";
+  import CharacterCard from "./CharacterCard.svelte";
   import whitePlus from "../assets/Plus.svg";
-  import UserCircle from "../assets/UserCircle.svg";
-  import Sparkle from "../assets/Sparkle.svg";
-  import BookBookmark from "../assets/BookBookmark.svg";
-  import eye from "../assets/BlueEye.svg";
 
   const dispatch = createEventDispatcher();
 
@@ -31,34 +28,18 @@
   ];
 
   // Filtered characters based on search and filter
-  $: filteredCharacters = (() => {
-    if (!characters || characters.length === 0) {
-      return [];
-    }
-    
+  $: filteredCharacters = characters.filter((character) => {
+    // Filter by search query
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const hasSearch = normalizedQuery.length > 0;
-    const hasFilter = selectedFilter !== "all";
-    
-    // If no filters applied, return all characters
-    if (!hasSearch && !hasFilter) {
-      return characters;
-    }
-    
-    return characters.filter((character) => {
-      // Filter by search query
-      const matchesSearch = hasSearch
-        ? (character.character_name?.toLowerCase().includes(normalizedQuery) ?? false)
-        : true;
+    const matchesSearch = !normalizedQuery || 
+      (character.character_name?.toLowerCase().includes(normalizedQuery) ?? false);
 
-      // Filter by character type
-      const matchesFilter = hasFilter
-        ? character.character_type === selectedFilter
-        : true;
+    // Filter by character type
+    const matchesFilter = selectedFilter === "all" || 
+      character.character_type === selectedFilter;
 
-      return matchesSearch && matchesFilter;
-    });
-  })();
+    return matchesSearch && matchesFilter;
+  });
 
   // Fetch characters from API and calculate books count
   const fetchCharacters = async (userId: string) => {
@@ -79,32 +60,7 @@
         return;
       }
 
-      // Fetch all stories to calculate books count
-      const storiesResult = await getAllStoriesForParent(userId);
-      let storiesData: any[] = [];
-      
-      if (storiesResult.success && storiesResult.data) {
-        storiesData = Array.isArray(storiesResult.data) ? storiesResult.data : [];
-        console.log('[MobileDashboardCharactersComponent] Fetched stories:', storiesData.length);
-      }
-
-      // Calculate books count for each character
-      const characterBookCounts = new Map<string, number>();
-      
-      storiesData.forEach((story: any) => {
-        if (story.character_name) {
-          const key = story.character_name.toLowerCase();
-          characterBookCounts.set(key, (characterBookCounts.get(key) || 0) + 1);
-        }
-      });
-
-      // Add booksCount to each character
-      characters = result.data.map((character: any) => ({
-        ...character,
-        booksCount: characterBookCounts.get(character.character_name?.toLowerCase() || '') || 0
-      }));
-
-      console.log('[MobileDashboardCharactersComponent] Successfully fetched', characters.length, 'characters with books count');
+      characters = result.data;
     } catch (err) {
       error = "An error occurred while fetching characters";
       characters = [];
@@ -135,37 +91,9 @@
     charactersFetched = true;
   }
 
-  // Get character type display text
-  function getCharacterTypeText(type: string): string {
-    switch(type) {
-      case "person": return "Person";
-      case "animal": return "Animal"; 
-      case "magical": return "Magical Creature";
-      default: return "Person";
-    }
-  }
-
-  // Get books count text
-  function getBooksCountText(count: number): string {
-    if (count === 0) return "Used in 0 Books";
-    if (count === 1) return "Used in 1 Books";
-    return `Used in ${count} Books`;
-  }
-
-  // Handle character preview
-  function handleCharacterPreview(character: any) {
-    dispatch("characterPreview", character);
-  }
-
-  // Handle use in new book
-  function handleUseInNewBook(character: any) {
-    // Navigate to create story with character
-    goto(`/create-character/1?character=${character.id}`);
-  }
-
-  // Handle view books
-  function handleViewBooks(character: any) {
-    handleCharacterPreview(character);
+  // Handle character preview from CharacterCard
+  function handleCharacterPreview(event: CustomEvent) {
+    dispatch("characterPreview", event.detail);
   }
 </script>
 
@@ -238,80 +166,8 @@
     {:else if filteredCharacters.length === 0}
       <div class="empty-message">No characters found</div>
     {:else}
-      {#each filteredCharacters as character}
-        <div class="card">
-          <div class="frame-2147227584_01">
-            <div class="frame-2147227588_01" style="background-image: url({character.enhanced_images || character.original_image_url || 'https://placehold.co/345x310'})">
-              <div class="frame-2147227590_01">
-                <div class="book_01">
-                  <img src={BookBookmark} alt="book" />
-                </div>
-                <div>
-                  <span class="usedinbooks_span">{getBooksCountText(character.stories.length || 0)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="frame-10">
-            <div class="frame-2147227582">
-              <div class="heading">
-                <div class="character-name">
-                  <span class="charactername_span">{character.character_name || "Unnamed Character"}</span>
-                </div>
-                <div class="frame-2147227591">
-                  <div class="icons">
-                    <div class="usercircle">
-                      <img src={UserCircle} alt="user" />
-                    </div>
-                    <div>
-                      <span class="charactertype_span">{getCharacterTypeText(character.character_type || "person")}</span>
-                    </div>
-                  </div>
-                  <div class="rectangle-261"></div>
-                  <div class="icons_01">
-                    <div class="sparkle">
-                      <img src={Sparkle} alt="sparkle" />
-                    </div>
-                    <div>
-                      <span class="ability_span">{character.special_ability || "No special ability"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="rectangle-261_01"></div>
-            </div>
-
-            <div class="frame-2147227589">
-              <div 
-                class="frame-1410104245_02"
-                on:click={() => handleUseInNewBook(character)}
-                role="button"
-                tabindex="0"
-                on:keydown={(e) => (e.key === "Enter" || e.key === " ") && handleUseInNewBook(character)}
-              >
-                <div class="ellipse-1415_02"></div>
-                <div class="use-in-new-book">
-                  <span class="useinnewbook_span">Use in New Book</span>
-                </div>
-              </div>
-              <div 
-                class="button"
-                on:click={() => handleViewBooks(character)}
-                role="button"
-                tabindex="0"
-                on:keydown={(e) => (e.key === "Enter" || e.key === " ") && handleViewBooks(character)}
-              >
-                <div class="eye">
-                  <img src={eye} alt="eye" />
-                </div>
-                <div class="view-books">
-                  <span class="viewbooks_span">View Books</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {#each filteredCharacters as character (character.id)}
+        <CharacterCard item={character} on:preview={handleCharacterPreview} />
       {/each}
     {/if}
   </div>
@@ -436,94 +292,6 @@
     color: #727272;
   }
 
-  .usedinbooks_span {
-    color: black;
-    font-size: 14px;
-    font-family: Quicksand;
-    font-weight: 500;
-    line-height: 19.60px;
-    word-wrap: break-word;
-  }
-
-  .charactername_span {
-    color: #141414;
-    font-size: 24px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 33.60px;
-    word-wrap: break-word;
-  }
-
-  .character-name {
-    align-self: stretch;
-  }
-
-  .charactertype_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: DM Sans;
-    font-weight: 400;
-    line-height: 22.40px;
-    word-wrap: break-word;
-  }
-
-  .rectangle-261 {
-    width: 1px;
-    align-self: stretch;
-    background: #EDEDED;
-  }
-
-  .ability_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: DM Sans;
-    font-weight: 400;
-    line-height: 22.40px;
-    word-wrap: break-word;
-  }
-
-  .rectangle-261_01 {
-    align-self: stretch;
-    height: 1px;
-    background: #EDEDED;
-  }
-
-  .ellipse-1415_02 {
-    width: 248px;
-    height: 114px;
-    left: 40px;
-    top: 17px;
-    position: absolute;
-    background: radial-gradient(ellipse 42.11% 42.11% at 50.00% 52.94%, white 0%, rgba(255, 255, 255, 0) 100%);
-    border-radius: 9999px;
-  }
-
-  .useinnewbook_span {
-    color: white;
-    font-size: 16px;
-    font-family: DM Sans;
-    font-weight: 600;
-    line-height: 22.40px;
-    word-wrap: break-word;
-  }
-
-  .use-in-new-book {
-    text-align: center;
-  }
-
-  .viewbooks_span {
-    color: #438BFF;
-    font-size: 16px;
-    font-family: DM Sans;
-    font-weight: 600;
-    line-height: 22.40px;
-    word-wrap: break-word;
-  }
-
-  .view-books {
-    text-align: center;
-  }
-
   .frame-1410104151_01 {
     align-self: stretch;
     flex-direction: column;
@@ -582,146 +350,12 @@
     display: inline-flex;
   }
 
-  .frame-2147227590_01 {
-    padding-top: 6px;
-    padding-bottom: 6px;
-    padding-left: 10px;
-    padding-right: 12px;
-    left: 178px;
-    top: 8px;
-    position: absolute;
-    background: white;
-    border-radius: 5px;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    display: inline-flex;
-  }
-
-  .book_01 {
-    width: 20px;
-    height: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .icons {
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .usercircle {
-    width: 20px;
-    height: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .icons_01 {
-    flex: 1 1 0;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 8px;
-    display: flex;
-  }
-
-  .sparkle {
-    width: 20px;
-    height: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .frame-1410104245_02 {
-    align-self: stretch;
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    position: relative;
-    background: #438BFF;
-    overflow: hidden;
-    border-radius: 12px;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-  }
-
-  .frame-1410104245_02:hover {
-    background: #3a7ae4;
-  }
-
-  .eye {
-    width: 20px;
-    height: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .button {
-    align-self: stretch;
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    background: #E7FEFF;
-    box-shadow: 0px 4px 0px #438BFF;
-    border-radius: 12px;
-    outline: 2px rgba(231, 254, 255, 0.20) solid;
-    outline-offset: -2px;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .button:hover {
-    background: #d1f9fa;
-    transform: translateY(1px);
-    box-shadow: 0px 3px 0px #438BFF;
-  }
-
   .frame-1410104155_01 {
     align-self: stretch;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
     gap: 16px;
-    display: flex;
-  }
-
-  .frame-2147227588_01 {
-    flex: 1 1 0;
-    height: 310px;
-    position: relative;
-    background: #F6F6F6;
-    overflow: hidden;
-    border-radius: 12px;
-    background-size: cover;
-    background-position: center;
-  }
-
-  .frame-2147227591 {
-    align-self: stretch;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
-    display: inline-flex;
-  }
-
-  .frame-2147227589 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
     display: flex;
   }
 
@@ -733,67 +367,6 @@
     align-items: center;
     gap: 24px;
     display: flex;
-  }
-
-  .frame-2147227584_01 {
-    align-self: stretch;
-    padding: 8px;
-    justify-content: space-between;
-    align-items: center;
-    display: inline-flex;
-  }
-
-  .heading {
-    align-self: stretch;
-    padding-left: 8px;
-    padding-right: 8px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
-    display: flex;
-  }
-
-  .frame-2147227582 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 12px;
-    display: flex;
-  }
-
-  .frame-10 {
-    align-self: stretch;
-    padding-top: 8px;
-    padding-bottom: 12px;
-    padding-left: 12px;
-    padding-right: 12px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 24px;
-    display: flex;
-  }
-
-  .card {
-    align-self: stretch;
-    padding-bottom: 10px;
-    background: white;
-    border-radius: 20px;
-    outline: 1px #EDEDED solid;
-    outline-offset: -1px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 4px;
-    display: flex;
-    transition: all 0.2s ease;
-  }
-
-  .card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
   }
 
   .frame-1410103852 {

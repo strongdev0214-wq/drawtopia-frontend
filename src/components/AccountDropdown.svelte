@@ -505,14 +505,6 @@
       position: relative;
       overflow: hidden;
     }
-
-    .caretdown img {
-      width: 12px;
-      height: 12px;
-      position: absolute;
-      left: 1.88px;
-      top: 4.13px;
-    }
   }
 </style>
 

@@ -3,6 +3,7 @@
   import { browser } from "$app/environment";
   import { storyCreation } from "../lib/stores/storyCreation";
   import { createEventDispatcher } from "svelte";
+  import { getStoriesForChild } from "../lib/database/stories";
   import eye from "../assets/BlueEye.svg";
   import Plus from "../assets/Plus.svg";
 
@@ -41,9 +42,40 @@
   }
 
   // Handle "View Story" button click
-  function handleViewStory() {
-    // TODO: Implement navigation to view stories for this child
-    console.log("View story for child:", item);
+  async function handleViewStory() {
+    try {
+      // Get the child profile ID
+      const childProfileId = item.id;
+      
+      if (!childProfileId) {
+        console.error("No child profile ID found");
+        return;
+      }
+
+      console.log("Fetching stories for child:", childProfileId);
+
+      // Fetch stories for this child (ordered by created_at descending, so most recent first)
+      const result = await getStoriesForChild(childProfileId);
+
+      if (result.success && result.data && result.data.length > 0) {
+        // Get the most recent story (first in the array since ordered by created_at desc)
+        const latestStory = result.data[0];
+        
+        console.log("Latest story:", latestStory);
+
+        // Navigate to the preview page with the story UID
+        if (latestStory.uid) {
+          await goto(`/preview/default?storyId=${latestStory.uid}`);
+        } else {
+          console.error("Story UID not found");
+        }
+      } else {
+        console.log("No stories found for this child");
+        // Optionally show a message to the user that no stories exist yet
+      }
+    } catch (error) {
+      console.error("Error fetching latest story:", error);
+    }
   }
 
   // Handle "New Story" button click
