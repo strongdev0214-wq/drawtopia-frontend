@@ -16,10 +16,6 @@
 
   const dispatch = createEventDispatcher();
 
-  let isLoadingPdf = false;
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
   function handleClose() {
     dispatch('close');
   }
@@ -40,55 +36,28 @@
       return;
     }
 
+    console.log('++++++++++++++++++++++++++++++++++++++++++++++');
+
     try {
-      isLoadingPdf = true;
-      addNotification({
-        type: 'info',
-        message: 'Getting PDF link...',
-        duration: 2000
-      });
-
-      // Call the generate-pdf endpoint which checks if PDF exists
-      // and returns existing URL or generates a new one
-      const generateResponse = await fetch(
-        `${API_BASE_URL}/api/books/${storyId}/generate-pdf`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-
-      if (!generateResponse.ok) {
-        const errorData = await generateResponse.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to get PDF link");
-      }
-
-      const result = await generateResponse.json();
+      // Generate share URL with current origin and story UID (without parameter name)
+      const shareUrl = `${window.location.origin}/share?${storyId}`;
       
-      if (!result.success || !result.pdf_url) {
-        throw new Error("Failed to get PDF URL");
-      }
-
-      // Copy the PDF URL to clipboard
-      await navigator.clipboard.writeText(result.pdf_url);
+      // Copy the share URL to clipboard
+      await navigator.clipboard.writeText(shareUrl);
       
       addNotification({
         type: 'success',
-        message: 'PDF link copied to clipboard!',
+        message: 'Share link copied to clipboard!',
         duration: 3000
       });
 
     } catch (error) {
-      console.error("Error copying PDF link:", error);
+      console.error("Error copying share link:", error);
       addNotification({
         type: 'error',
         message: error instanceof Error ? error.message : 'Failed to copy link',
         duration: 3000
       });
-    } finally {
-      isLoadingPdf = false;
     }
   }
 </script>
@@ -163,19 +132,14 @@
           </div>
           <div 
             class="button_01"
-            class:button-disabled={isLoadingPdf}
             on:click={handleCopyLink}
             on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleCopyLink()}
             role="button"
             tabindex="0"
           >
-            {#if isLoadingPdf}
-              <div class="loader"></div>
-            {:else}
-              <img src={link} alt="link" />
-            {/if}
+            <img src={link} alt="link" />
             <div class="copy-link">
-              <span class="copylink_span">{isLoadingPdf ? 'Generating...' : 'Copy Link'}</span>
+              <span class="copylink_span">Copy Link</span>
             </div>
           </div>
         </div>
@@ -525,27 +489,6 @@
     background: #2e6bc7;
     transform: translateY(0);
     box-shadow: 0px 2px 4px rgba(67, 139, 255, 0.3);
-  }
-
-  .button-disabled {
-    opacity: 0.6;
-    cursor: not-allowed !important;
-    pointer-events: none;
-  }
-
-  .loader {
-    width: 18px;
-    height: 18px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 
   .frame-1410103845 {
