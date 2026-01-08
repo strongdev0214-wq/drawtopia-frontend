@@ -223,8 +223,12 @@
           message: 'Phone verified successfully! Redirecting to dashboard...'
         });
         
-        // Redirect to dashboard or main page
-        goto('/dashboard');
+        // Get redirect path from sessionStorage or default to dashboard
+        const redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
+        sessionStorage.removeItem('redirectAfterLogin'); // Clean up
+        
+        // Redirect to intended destination or dashboard
+        goto(redirectPath);
       } else {
         console.error('Phone verification failed:', result.error);
         errors.general = result.error || 'Invalid verification code. Please try again.';

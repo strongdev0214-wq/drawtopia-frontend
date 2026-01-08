@@ -148,14 +148,18 @@
         // Clear any stored pending verification data
         localStorage.removeItem("pendingEmailVerification");
 
+        // Get redirect path from sessionStorage or default to home
+        const redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/';
+        sessionStorage.removeItem('redirectAfterLogin'); // Clean up
+
         // Show success message
         addNotification({
           type: "success",
-          message: "Email verified successfully! Redirecting to dashboard...",
+          message: "Email verified successfully! Redirecting...",
         });
 
-        // Redirect to dashboard or main page
-        goto("/");
+        // Redirect to intended destination or home page
+        goto(redirectPath);
       } else {
         console.error("Email verification failed:", result.error);
         errors.general =

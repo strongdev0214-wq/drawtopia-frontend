@@ -199,12 +199,16 @@
         console.log("Login successful:", result.user);
         console.log("Session:", result.session);
 
-        // Redirect to dashboard
+        // Get redirect path from sessionStorage or default to dashboard
+        const redirectPath = sessionStorage.getItem('redirectAfterLogin') || '/dashboard';
+        sessionStorage.removeItem('redirectAfterLogin'); // Clean up
+
+        // Redirect to intended destination or dashboard
         addNotification({
           type: 'success',
-          message: 'Login successful! Redirecting to dashboard...'
+          message: 'Login successful! Redirecting...'
         });
-        goto("/dashboard");
+        goto(redirectPath);
       } else {
         // Handle login error
         errors.general =
