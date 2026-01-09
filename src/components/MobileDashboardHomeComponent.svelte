@@ -45,6 +45,8 @@
   export let averageHints: number = 0;
 
   import { createEventDispatcher } from "svelte";
+    import { browser } from "$app/environment";
+    import { storyCreation } from "$lib/stores/storyCreation";
   const dispatch = createEventDispatcher();
 
   // Helper function to format reading time
@@ -71,6 +73,29 @@
     console.log('Share story:', storyInfo);
     selectedStoryForSharing = storyInfo;
     showShareStoryModal = true;
+  }
+
+  function handleNewStory(event: CustomEvent): void {
+    const child = event.detail.item || event.detail;
+    const childId = child.id?.toString();
+    const childName = child.name || child.first_name || "Unnamed Child";
+
+    if (!childId) {
+      console.error("Child ID is missing");
+      return;
+    }
+
+    // Store child info in sessionStorage
+    if (browser) {
+      sessionStorage.setItem("selectedChildProfileId", childId);
+      sessionStorage.setItem("selectedChildProfileName", childName);
+    }
+
+    // Update story creation store
+    storyCreation.setSelectedChild(childId, childName);
+
+    // Navigate to create-character/1
+    goto("/create-character/1");
   }
 </script>
 
@@ -217,7 +242,6 @@
             {#each characters as character (character.id)}
               <CharacterCard 
                 item={character} 
-                booksCount={character.stories?.length || 0}
                 on:preview={handleCharacterPreview}
               />
             {/each}
@@ -245,7 +269,15 @@
             </div>
           {:else}
             {#each childProfiles as child (child.id)}
-              <ChildCard item={child} />
+              <ChildCard 
+                item={child} 
+                on:newStory={handleNewStory}
+                on:editChild={(event) => {
+                  const childItem = event.detail.item || child;
+                  goto(
+                    `/create-child-profile/edit?id=${childItem.id || ""}&name=${encodeURIComponent(childItem.name || childItem.first_name || "")}`,
+                  );
+                }} />
             {/each}
           {/if}
         {/if}

@@ -96,7 +96,7 @@
           <div class="text-6-years-old"><span class="fyearsold_span">{getAgeLabel()}</span></div>
         </div>
       </div>
-      <div class="tag" on:click={handleEdit} role="button" tabindex="0">
+      <div class="tag" on:click={handleEdit} on:keydown={(e) => e.key === 'Enter' && handleEdit()} role="button" tabindex="0">
         <div><span class="edit_span">Edit</span></div>
       </div>
     </div>
@@ -112,13 +112,13 @@
       </div>
     </div>
     <div class="frame-2147227579">
-      <div class="button" on:click={handleViewStory} role="button" tabindex="0">
+      <div class="button" on:click={handleViewStory} on:keydown={(e) => e.key === 'Enter' && handleViewStory()} role="button" tabindex="0">
         <div class="eye">
           <img src={eye} alt="view" class="vector" />
         </div>
         <div class="view-story"><span class="viewstory_span">View Story</span></div>
       </div>
-      <div class="frame-1410104245" on:click={handleNewStory} role="button" tabindex="0">
+      <div class="frame-1410104245" on:click={handleNewStory} on:keydown={(e) => e.key === 'Enter' && handleNewStory()} role="button" tabindex="0">
         <div class="plus">
           <img src={Plus} alt="plus" class="vector_01" />
         </div>

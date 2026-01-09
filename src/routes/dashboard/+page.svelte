@@ -20,7 +20,7 @@
   import x from "../../assets/X.svg";
   import GiftTrackingComponent from "../../components/GiftTrackingComponent.svelte";
   import NotificationComponent from "../../components/NotificationComponent.svelte";
-import AccountDropdown from "../../components/AccountDropdown.svelte";
+  import AccountDropdown from "../../components/AccountDropdown.svelte";
   import { storyCreation } from "../../lib/stores/storyCreation";
   import books from "../../assets/Books.svg";
   import starIcon from "../../assets/OutlineStar.svg";
@@ -644,9 +644,6 @@ import AccountDropdown from "../../components/AccountDropdown.svelte";
               <div><span class="storylibrary_span">Story Library</span></div>
             </div>
           </div>
-          {#if activeMenu === "story-library"}
-            <div class="ellipse-1415"></div>
-          {/if}
         </div>
 
         <div 

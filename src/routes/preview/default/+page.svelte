@@ -34,6 +34,7 @@
   const totalScenes = 5;
   let viewMode: 'one-page' | 'two-page' = 'two-page'; // Default to two-page view
   let isFullscreen = false;
+  let currentSubPage: 'left' | 'right' = 'left'; // Track which sub-page to show in one-page mode
   
   let storyTitle = "Luna's Adventure";
   let pagesRead = 0;
@@ -44,6 +45,7 @@
   let currentStoryId: string | null = null; // Current story ID
   let isLoading = true;
   let loadError = "";
+  let pageCounterText = ""; // Page counter display text
 
   // Audio playback state
   let audioUrls: string[] = []; // Array of audio URLs from database
@@ -302,31 +304,72 @@
   }
 
   function previousScene() {
-    if (currentSceneIndex > 0) {
-      currentSceneIndex--;
+    // In one-page mode, handle sub-pages
+    if (viewMode === 'one-page' && currentSceneIndex > 0) {
+      // If we're on the right page, go back to left page of same scene
+      if (currentSubPage === 'right') {
+        currentSubPage = 'left';
+        return;
+      }
+      // If we're on left page, go to previous scene's right page
+      if (currentSceneIndex > 1) {
+        currentSceneIndex--;
+        currentSubPage = 'right';
+      } else if (currentSceneIndex === 1) {
+        // Go back to cover
+        currentSceneIndex = 0;
+        currentSubPage = 'left';
+      }
+    } else {
+      // Two-page mode or on cover - just go back one scene
+      if (currentSceneIndex > 0) {
+        currentSceneIndex--;
+        currentSubPage = 'left';
+      }
     }
   }
 
   function nextScene() {
     // Check if trying to go beyond page 2 (index 1)
-    // If on page 2 (index 1) and trying to go to page 3 (index 2), show lock modal
-    // But only if user is on free plan AND story is not purchased
-    if (currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
-      // Show the preview lock modal for free plan users who haven't purchased
-      console.log("[preview] Showing lock modal - currentSceneIndex:", currentSceneIndex, "isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
+    // But in one-page mode, we need to check differently
+    if (viewMode === 'one-page' && currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
+      // In one-page mode, allow viewing both left and right of scene 1
+      if (currentSceneIndex === 1 && currentSubPage === 'left') {
+        currentSubPage = 'right';
+        return;
+      }
+      // If trying to go beyond scene 1's right page, show lock
       showPreviewLockModal = true;
       return;
-    } else if (currentSceneIndex >= 1) {
-      console.log("[preview] Not showing lock modal - isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
+    } else if (viewMode === 'two-page' && currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
+      // Two-page mode: show lock when trying to advance from scene 1
+      showPreviewLockModal = true;
+      return;
     }
     
-    // Allow navigation from page 1 (index 0) to page 2 (index 1)
-    // Or allow all navigation for paid users
-    if (currentSceneIndex < storyScenes.length - 1) {
-      currentSceneIndex++;
+    // In one-page mode, advance through sub-pages
+    if (viewMode === 'one-page' && currentSceneIndex > 0) {
+      // If on left page, advance to right page
+      if (currentSubPage === 'left') {
+        currentSubPage = 'right';
+        return;
+      }
+      // If on right page, advance to next scene's left page
+      if (currentSceneIndex < storyScenes.length - 1) {
+        currentSceneIndex++;
+        currentSubPage = 'left';
+      }
+    } else {
+      // Two-page mode or on cover - just advance one scene
+      if (currentSceneIndex < storyScenes.length - 1) {
+        currentSceneIndex++;
+        currentSubPage = 'left';
+      } else if (currentSceneIndex === 0) {
+        // Moving from cover to first scene
+        currentSceneIndex = 1;
+        currentSubPage = 'left';
+      }
     }
-    
-    // Note: StoryPreviewEnd modal logic removed since we lock after page 2
   }
   
   function handleCloseStoryPreviewEnd() {
@@ -359,6 +402,7 @@
     // Allow navigation for paid users or to pages 1-2 for free users
     if (index >= 0 && index < storyScenes.length) {
       currentSceneIndex = index;
+      currentSubPage = 'left'; // Reset to left page when jumping to a scene
     }
   }
   
@@ -544,6 +588,11 @@
     loadAudio(currentSceneIndex);
   }
   
+  // Reset to left page when switching to one-page mode
+  $: if (viewMode === 'one-page' && currentSceneIndex > 0) {
+    currentSubPage = 'left';
+  }
+  
   // Cleanup on component destroy
   onDestroy(() => {
     cleanupAudio();
@@ -556,11 +605,21 @@
   });
 
   // Update page counter text
-  $: pageCounterText = storyScenes.length > 0
-    ? currentSceneIndex === 0
-      ? `Cover (FREE PREVIEW)`
-      : `Page ${currentSceneIndex} of ${storyScenes.length - 1} (FREE PREVIEW)`
-    : "Page 1 of 2 (FREE PREVIEW) • Pages 3-5 available after purchase";
+  $: {
+    if (storyScenes.length === 0) {
+      pageCounterText = "Page 1 of 2 (FREE PREVIEW) • Pages 3-5 available after purchase";
+    } else if (currentSceneIndex === 0) {
+      pageCounterText = `Cover (FREE PREVIEW)`;
+    } else if (viewMode === 'one-page') {
+      // In one-page mode, show which half of the page we're viewing
+      const pageNum = (currentSceneIndex - 1) * 2 + (currentSubPage === 'left' ? 1 : 2);
+      const totalPages = (storyScenes.length - 1) * 2;
+      pageCounterText = `Page ${pageNum} of ${totalPages} (FREE PREVIEW)`;
+    } else {
+      // Two-page mode
+      pageCounterText = `Page ${currentSceneIndex} of ${storyScenes.length - 1} (FREE PREVIEW)`;
+    }
+  }
   
   // Get current page text
   // Adjust index for story pages since cover is index 0
@@ -754,8 +813,55 @@
                           <div class="inner-shadow"></div>
                         </div>
                       </div>
+                    {:else if viewMode === 'one-page'}
+                      <!-- One-page mode: Show only left OR right page -->
+                      <div class="mobile-image-split" class:single-page-mode={true}>
+                        {#if currentSubPage === 'left'}
+                          <div class="mobile-image-half mobile-image-left single-page-full">
+                            <div class="image">
+                              <img
+                                src={storyScenes[currentSceneIndex]}
+                                alt={`Scene ${currentSceneIndex} - Left`}
+                                class="scene-main-image scene-image-left"
+                                draggable="false"
+                              />
+                              <div class="frame-1410104055">
+                                <div class="tag">
+                                  <div>
+                                    <span class="freepreviewpages_span"
+                                      >Free preview Pages</span
+                                    >
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="inner-shadow"></div>
+                            </div>
+                          </div>
+                        {:else}
+                          <div class="mobile-image-half mobile-image-right single-page-full">
+                            <div class="image_01">
+                              <img
+                                src={storyScenes[currentSceneIndex]}
+                                alt={`Scene ${currentSceneIndex} - Right`}
+                                class="scene-main-image scene-image-right"
+                                draggable="false"
+                              />
+                              <div class="frame-1410104055_01">
+                                <div class="tag_01">
+                                  <div>
+                                    <span class="freepreviewpages_01_span"
+                                      >Free preview Pages</span
+                                    >
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="inner-shadow"></div>
+                            </div>
+                          </div>
+                        {/if}
+                      </div>
                     {:else}
-                      <!-- Scenes: Split into left and right halves -->
+                      <!-- Two-page mode: Split into left and right halves -->
                       <div class="mobile-image-split">
                         <div class="mobile-image-half mobile-image-left">
                           <div class="image">
@@ -1884,7 +1990,7 @@
   }
 
   .tag {
-    padding: 12px;
+    padding: 8px 12px;
     background: #f8fafb;
     border-radius: 12px;
     outline: 1px #ededed solid;
@@ -1893,10 +1999,11 @@
     align-items: flex-end;
     gap: 4px;
     display: inline-flex;
+    margin: auto;
   }
 
   .tag_01 {
-    padding: 12px;
+    padding: 8px 12px;
     background: #f8fafb;
     border-radius: 12px;
     outline: 1px #ededed solid;
@@ -1905,6 +2012,7 @@
     align-items: flex-end;
     gap: 4px;
     display: inline-flex;
+    margin: auto;
   }
 
   .frame-1410104060 {
@@ -2213,6 +2321,11 @@
     gap: 2px;
     width: 100%;
   }
+  
+  /* Single page mode: center the single page */
+  .mobile-image-split.single-page-mode {
+    justify-content: center;
+  }
 
   .mobile-image-half {
     position: relative;
@@ -2223,6 +2336,11 @@
     box-shadow: -2px 10px 0px black;
     display: flex;
     align-items: stretch;
+  }
+  
+  /* When showing only one page, limit its width */
+  .mobile-image-half.single-page-full {
+    max-width: 600px;
   }
 
 

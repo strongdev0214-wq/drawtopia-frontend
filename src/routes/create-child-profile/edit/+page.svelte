@@ -337,7 +337,7 @@
         </div>
       </div>
       <div on:click={handleBackClick} on:keydown={(e) => e.key === "Enter" && handleBackClick()} role="button" tabindex="0" style="cursor: pointer;">
-        <MobileBackBtn backText="Back" backRoute="" />
+        <MobileBackBtn backText="Back" backRoute="/dashboard" />
       </div>
       <div class="back-btn-container">
         <div on:click={handleBackClick} on:keydown={(e) => e.key === "Enter" && handleBackClick()} role="button" tabindex="0" style="cursor: pointer;">
