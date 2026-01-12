@@ -433,7 +433,7 @@
                 </div>
             </div>
             <div class="frame-2147227646">
-                <div class="button_01">
+                <div class="button_01" on:click={() => {goto('/dashboard')}} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto('/dashboard')}>
                     <div class="save-as-draft">
                         <span class="saveasdraft_span">Save as Draft</span>
                     </div>

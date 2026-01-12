@@ -14,6 +14,7 @@
   import SpeakerSimpleHigh from "../../../assets/SpeakerSimpleHigh.svg";
   import Play from "../../../assets/Play.svg";
   import CaretDown from "../../../assets/CaretDown.svg";
+  import dedicationLeft from "../../../assets/dedicationleft.png";
   import MobileBackBtn from "../../../components/MobileBackBtn.svelte";
   import ShareStoryModal from "../../../components/ShareStoryModal.svelte";
   import StoryInfoModal from "../../../components/StoryInfoModal.svelte";
@@ -46,6 +47,12 @@
   let isLoading = true;
   let loadError = "";
   let pageCounterText = ""; // Page counter display text
+  let currentPageText = ""; // Current page text content
+
+  // Dedication data
+  let dedicationText = '';
+  let dedicationImage = '';
+  let hasDedication = false;
 
   // Audio playback state
   let audioUrls: string[] = []; // Array of audio URLs from database
@@ -182,6 +189,20 @@
               console.log('[preview] Added story cover:', coverUrl);
             }
             
+            // Check for dedication and insert after cover if it exists
+            if (story[0].dedication_text || story[0].dedication_image) {
+              dedicationText = story[0].dedication_text || '';
+              dedicationImage = story[0].dedication_image ? story[0].dedication_image.split("?")[0] : '';
+              hasDedication = true;
+              
+              // Insert dedication scene after cover (at index 1)
+              // We'll use a special marker for dedication
+              if (loadedScenes.length > 0) {
+                loadedScenes.splice(1, 0, 'DEDICATION_PAGE');
+                console.log('[preview] Added dedication page after cover');
+              }
+            }
+            
             // Handle different content formats
             if (Array.isArray(content)) {
               // If it's an array of pages
@@ -306,22 +327,36 @@
   function previousScene() {
     // In one-page mode, handle sub-pages
     if (viewMode === 'one-page' && currentSceneIndex > 0) {
+      // Calculate story page index
+      const getStoryPageIndex = (sceneIndex: number) => {
+        if (sceneIndex === 0) return -1; // Cover
+        if (hasDedication && sceneIndex === 1) return -1; // Dedication
+        return hasDedication ? sceneIndex - 2 : sceneIndex - 1;
+      };
+      const currentStoryPageIndex = getStoryPageIndex(currentSceneIndex);
+      
       // If we're on the right page, go back to left page of same scene
-      if (currentSubPage === 'right') {
+      if (currentSubPage === 'right' && currentStoryPageIndex >= 0) {
         currentSubPage = 'left';
         return;
       }
       // If we're on left page, go to previous scene's right page
       if (currentSceneIndex > 1) {
         currentSceneIndex--;
-        currentSubPage = 'right';
+        // If previous scene is a story page (not cover/dedication), go to its right page
+        const prevStoryPageIndex = getStoryPageIndex(currentSceneIndex);
+        if (prevStoryPageIndex >= 0) {
+          currentSubPage = 'right';
+        } else {
+          currentSubPage = 'left';
+        }
       } else if (currentSceneIndex === 1) {
         // Go back to cover
         currentSceneIndex = 0;
         currentSubPage = 'left';
       }
     } else {
-      // Two-page mode or on cover - just go back one scene
+      // Two-page mode or on cover/dedication - just go back one scene
       if (currentSceneIndex > 0) {
         currentSceneIndex--;
         currentSubPage = 'left';
@@ -330,25 +365,26 @@
   }
 
   function nextScene() {
-    // Check if trying to go beyond page 2 (index 1)
-    // But in one-page mode, we need to check differently
-    if (viewMode === 'one-page' && currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
-      // In one-page mode, allow viewing both left and right of scene 1
-      if (currentSceneIndex === 1 && currentSubPage === 'left') {
-        currentSubPage = 'right';
-        return;
-      }
-      // If trying to go beyond scene 1's right page, show lock
-      showPreviewLockModal = true;
-      return;
-    } else if (viewMode === 'two-page' && currentSceneIndex >= 1 && isFreePlan && !isPurchased) {
-      // Two-page mode: show lock when trying to advance from scene 1
+    // Calculate the actual story page index (excluding cover and dedication)
+    const getStoryPageIndex = (sceneIndex: number) => {
+      if (sceneIndex === 0) return -1; // Cover
+      if (hasDedication && sceneIndex === 1) return -1; // Dedication
+      return hasDedication ? sceneIndex - 2 : sceneIndex - 1;
+    };
+    
+    const currentStoryPageIndex = getStoryPageIndex(currentSceneIndex);
+    const nextSceneIndex = currentSceneIndex + 1;
+    const nextStoryPageIndex = getStoryPageIndex(nextSceneIndex);
+    
+    // Check if trying to go beyond page 2 for free plan users who haven't purchased
+    // Story page index 1 = page 2 (0-indexed: page 1 = index 0, page 2 = index 1)
+    if (nextStoryPageIndex > 1 && isFreePlan && !isPurchased) {
       showPreviewLockModal = true;
       return;
     }
     
     // In one-page mode, advance through sub-pages
-    if (viewMode === 'one-page' && currentSceneIndex > 0) {
+    if (viewMode === 'one-page' && currentSceneIndex > 0 && currentStoryPageIndex >= 0) {
       // If on left page, advance to right page
       if (currentSubPage === 'left') {
         currentSubPage = 'right';
@@ -360,12 +396,12 @@
         currentSubPage = 'left';
       }
     } else {
-      // Two-page mode or on cover - just advance one scene
+      // Two-page mode or on cover/dedication - just advance one scene
       if (currentSceneIndex < storyScenes.length - 1) {
         currentSceneIndex++;
         currentSubPage = 'left';
       } else if (currentSceneIndex === 0) {
-        // Moving from cover to first scene
+        // Moving from cover to next page (dedication or first scene)
         currentSceneIndex = 1;
         currentSubPage = 'left';
       }
@@ -392,9 +428,22 @@
   }
 
   function goToScene(index: number) {
-    // Prevent navigation to pages beyond page 2 (index 1) for free plan users who haven't purchased
-    if (index > 1 && isFreePlan && !isPurchased) {
-      console.log("[preview] Showing lock modal via goToScene - index:", index, "isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
+    // Allow navigation to cover (index 0) and dedication (index 1 if hasDedication) for everyone
+    if (index === 0 || (hasDedication && index === 1)) {
+      if (index >= 0 && index < storyScenes.length) {
+        currentSceneIndex = index;
+        currentSubPage = 'left';
+      }
+      return;
+    }
+    
+    // Calculate the actual story page index (excluding cover and dedication)
+    const storyPageIndex = hasDedication ? index - 2 : index - 1;
+    
+    // Prevent navigation to pages beyond page 2 for free plan users who haven't purchased
+    // Story page index 1 = page 2, so we allow index 0 (page 1) and index 1 (page 2)
+    if (storyPageIndex > 1 && isFreePlan && !isPurchased) {
+      console.log("[preview] Showing lock modal via goToScene - index:", index, "storyPageIndex:", storyPageIndex, "isFreePlan:", isFreePlan, "isPurchased:", isPurchased);
       showPreviewLockModal = true;
       return;
     }
@@ -436,14 +485,16 @@
     duration = 0;
     isAudioAvailable = false;
     
-    // Cover page (index 0) and dedication pages don't have audio
-    if (sceneIndex === 0) {
-      console.log("[audio] Cover page - no audio");
+    // Cover page (index 0) and dedication pages (index 1 if hasDedication) don't have audio
+    if (sceneIndex === 0 || (hasDedication && sceneIndex === 1)) {
+      console.log("[audio] Cover or dedication page - no audio");
       return;
     }
     
-    // Calculate audio index: scene index 1 = audio[0], scene index 2 = audio[1], etc.
-    const audioIndex = sceneIndex - 1;
+    // Calculate audio index: account for cover and dedication
+    // If hasDedication: scene index 2 = audio[0], scene index 3 = audio[1], etc.
+    // If no dedication: scene index 1 = audio[0], scene index 2 = audio[1], etc.
+    const audioIndex = sceneIndex - (hasDedication ? 2 : 1);
     
     // Check if audio exists for this scene
     if (audioIndex < 0 || audioIndex >= audioUrls.length || !audioUrls[audioIndex]) {
@@ -583,9 +634,12 @@
     }
   }
   
-  // Load audio when scene changes
+  // Load audio when scene changes (skip cover and dedication)
   $: if (browser && currentSceneIndex !== undefined) {
-    loadAudio(currentSceneIndex);
+    // Skip audio for cover (index 0) and dedication (index 1 if hasDedication)
+    if (currentSceneIndex > 0 && !(hasDedication && currentSceneIndex === 1)) {
+      loadAudio(currentSceneIndex);
+    }
   }
   
   // Reset to left page when switching to one-page mode
@@ -610,22 +664,34 @@
       pageCounterText = "Page 1 of 2 (FREE PREVIEW) • Pages 3-5 available after purchase";
     } else if (currentSceneIndex === 0) {
       pageCounterText = `Cover (FREE PREVIEW)`;
+    } else if (hasDedication && currentSceneIndex === 1) {
+      pageCounterText = `Dedication Page (FREE PREVIEW)`;
     } else if (viewMode === 'one-page') {
       // In one-page mode, show which half of the page we're viewing
-      const pageNum = (currentSceneIndex - 1) * 2 + (currentSubPage === 'left' ? 1 : 2);
-      const totalPages = (storyScenes.length - 1) * 2;
+      // Account for dedication page
+      const adjustedIndex = hasDedication ? currentSceneIndex - 2 : currentSceneIndex - 1;
+      const pageNum = adjustedIndex * 2 + (currentSubPage === 'left' ? 1 : 2);
+      const totalStoryPages = storyScenes.length - (hasDedication ? 2 : 1);
+      const totalPages = totalStoryPages * 2;
       pageCounterText = `Page ${pageNum} of ${totalPages} (FREE PREVIEW)`;
     } else {
       // Two-page mode
-      pageCounterText = `Page ${currentSceneIndex} of ${storyScenes.length - 1} (FREE PREVIEW)`;
+      const adjustedIndex = hasDedication ? currentSceneIndex - 1 : currentSceneIndex;
+      const totalStoryPages = storyScenes.length - (hasDedication ? 2 : 1);
+      pageCounterText = `Page ${adjustedIndex} of ${totalStoryPages} (FREE PREVIEW)`;
     }
   }
   
   // Get current page text
-  // Adjust index for story pages since cover is index 0
-  $: currentPageText = storyPages.length > 0 && currentSceneIndex > 0 && (currentSceneIndex - 1) < storyPages.length
-    ? storyPages[currentSceneIndex - 1].text
-    : '';
+  // Adjust index for story pages since cover is index 0 and dedication (if exists) is index 1
+  $: currentPageText = (currentSceneIndex === 0 || (hasDedication && currentSceneIndex === 1))
+    ? ''
+    : (() => {
+        const pageIndex = currentSceneIndex - (hasDedication ? 2 : 1);
+        return storyPages.length > 0 && pageIndex >= 0 && pageIndex < storyPages.length
+          ? storyPages[pageIndex].text
+          : '';
+      })();
   
   // Toggle fullscreen mode
   function toggleFullscreen() {
@@ -813,7 +879,40 @@
                           <div class="inner-shadow"></div>
                         </div>
                       </div>
-                    {:else if viewMode === 'one-page'}
+                    {:else if hasDedication && currentSceneIndex === 1 && storyScenes[currentSceneIndex] === 'DEDICATION_PAGE'}
+                      <!-- Dedication Page: Left blank, Right with dedication image and text -->
+                      <div class="mobile-image-split">
+                        <div class="mobile-image-half mobile-image-left dedication-blank">
+                          <div class="image dedication-blank-page">
+                            <!-- White blank page -->
+                            <img
+                              src={dedicationLeft}
+                              alt="Dedication"
+                              class="dedication-image"
+                              draggable="false"
+                            />
+                          </div>
+                        </div>
+                        <div class="mobile-image-half mobile-image-right dedication-page">
+                          <div class="image dedication-content">
+                            {#if dedicationImage}
+                              <img
+                                src={dedicationImage}
+                                alt="Dedication"
+                                class="dedication-image"
+                                draggable="false"
+                              />
+                            {/if}
+                            {#if dedicationText}
+                              <div class="dedication-text-container">
+                                <p class="dedication-text">{dedicationText}</p>
+                              </div>
+                            {/if}
+                            <div class="inner-shadow"></div>
+                          </div>
+                        </div>
+                      </div>
+                    {:else if viewMode === 'one-page' && storyScenes[currentSceneIndex] && storyScenes[currentSceneIndex] !== 'DEDICATION_PAGE'}
                       <!-- One-page mode: Show only left OR right page -->
                       <div class="mobile-image-split" class:single-page-mode={true}>
                         {#if currentSubPage === 'left'}
@@ -841,7 +940,7 @@
                           <div class="mobile-image-half mobile-image-right single-page-full">
                             <div class="image_01">
                               <img
-                                src={storyScenes[currentSceneIndex]}
+                                src={storyScenes[currentSceneIndex] && storyScenes[currentSceneIndex] !== 'DEDICATION_PAGE' ? storyScenes[currentSceneIndex] : ''}
                                 alt={`Scene ${currentSceneIndex} - Right`}
                                 class="scene-main-image scene-image-right"
                                 draggable="false"
@@ -860,7 +959,7 @@
                           </div>
                         {/if}
                       </div>
-                    {:else}
+                    {:else if storyScenes[currentSceneIndex] && storyScenes[currentSceneIndex] !== 'DEDICATION_PAGE'}
                       <!-- Two-page mode: Split into left and right halves -->
                       <div class="mobile-image-split">
                         <div class="mobile-image-half mobile-image-left">
@@ -1033,7 +1132,18 @@
                     >
                       <img src={Book} alt="Cover" />
                     </div>
-                  {:else if idx === 1}
+                  {:else if idx === 1 && hasDedication && storyScenes[idx] === 'DEDICATION_PAGE'}
+                    <div 
+                      class="number_01" 
+                      class:active={currentSceneIndex === idx} 
+                      on:click={() => goToScene(idx)} 
+                      on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && goToScene(idx)}
+                      role="button" 
+                      tabindex="0"
+                    >
+                      <img src={EnvelopeSimple} alt="Dedication Page" />
+                    </div>
+                  {:else if idx === 1 && !hasDedication}
                     <div 
                       class="number_01" 
                       class:active={currentSceneIndex === idx} 
@@ -2642,5 +2752,68 @@
     .share-dots-button-group {
       display: none;
     }
+  }
+
+  /* Dedication Page Styles */
+  .dedication-blank {
+    background: white;
+  }
+
+  .dedication-blank-page {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dedication-page {
+    background: white;
+  }
+
+  .dedication-content {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    position: relative;
+    padding: 20px;
+  }
+
+  .dedication-image {
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .dedication-text-container {
+    width: 70%;
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 20px;
+    flex-shrink: 0;
+    position: absolute;
+    bottom: 80px;
+  }
+
+  .dedication-text {
+    font-size: 32px;
+    line-height: 1.8;
+    color: #333;
+    margin: 0;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    text-align: center;
+    max-width: 100%;
+    word-wrap: break-word;
   }
 </style>

@@ -7,9 +7,11 @@
     import previewStoryImg from "../../../assets/preview_story.png";
 
   import { goto } from "$app/navigation";
+  import { onMount } from "svelte";
 
   import { browser } from "$app/environment";
   import MobileBackBtn from "../../../components/MobileBackBtn.svelte";
+  import { addNotification } from "../../../lib/stores/notification";
 
   let isMobile = false;
   let showDevicePermissionModal = false;
@@ -58,6 +60,51 @@
   $: if (browser) {
     isMobile = window.innerWidth < 800;
   }
+
+  // Check story generation status on mount
+  onMount(() => {
+    if (browser) {
+      const storyId = sessionStorage.getItem('currentStoryId');
+      const storyGenerationError = sessionStorage.getItem('storyGenerationError');
+      
+      // Check if story was generated successfully
+      if (storyId) {
+        // Story generation successful - show success notification with story ID
+        addNotification({
+          type: 'success',
+          message: `Story generated successfully! Story ID: ${storyId}`,
+          duration: 8000 // Show for 8 seconds
+        });
+        // Clear the error flag if it exists
+        sessionStorage.removeItem('storyGenerationError');
+      } else if (storyGenerationError) {
+        // Story generation failed - show error notification and redirect to dashboard
+        addNotification({
+          type: 'error',
+          message: 'Story generation failed. Please try again.',
+          duration: 3000 // Show for 3 seconds before redirect
+        });
+        // Clear the error flag after showing
+        sessionStorage.removeItem('storyGenerationError');
+        // Redirect to dashboard after showing notification
+        setTimeout(() => {
+          goto('/dashboard');
+        }, 3000);
+      } else {
+        // No story ID and no error flag - treat as failure
+        // This handles cases where user navigates directly or generation didn't complete
+        addNotification({
+          type: 'error',
+          message: 'Story generation failed. Please try again.',
+          duration: 3000 // Show for 3 seconds before redirect
+        });
+        // Redirect to dashboard after showing notification
+        setTimeout(() => {
+          goto('/dashboard');
+        }, 3000);
+      }
+    }
+  });
 </script>
 
 <div class="record-pages-default-selected">

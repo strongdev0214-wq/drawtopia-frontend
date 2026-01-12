@@ -17,6 +17,9 @@
         isMobile = window.innerWidth < 800;
     }
     
+    // Computed property to check if continue button should be enabled
+    $: canContinue = dedicationMessage && dedicationMessage.trim().length > 0;
+    
     function handleDedicationInput(event: Event) {
         const target = event.target as HTMLTextAreaElement | null;
         const value = target?.value ?? "";
@@ -29,6 +32,9 @@
     }
     
     function handleContinueToPreview() {
+        // Only proceed if dedication text is not empty
+        if (!canContinue) return;
+        
         // Ensure dedication text is saved before navigating
         if (browser && dedicationMessage) {
             sessionStorage.setItem("dedication_text", dedicationMessage);
@@ -213,7 +219,14 @@
                     </div>
                 </div>
             </div>
-            <div class="frame-1410104246" on:click={handleContinueToPreview} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && handleContinueToPreview()}>
+            <div 
+                class="frame-1410104246" 
+                class:disabled={!canContinue}
+                on:click={handleContinueToPreview} 
+                role="button" 
+                tabindex={canContinue ? 0 : -1}
+                on:keydown={(e) => e.key === 'Enter' && canContinue && handleContinueToPreview()}
+            >
                 <div class="continue-to-preview-story">
                     <span class="continuetopreviewstory_span"
                         >Continue to Preview Story</span
@@ -917,12 +930,22 @@
         transition: all 0.2s ease;
     }
     
-    .frame-1410104246:hover {
+    .frame-1410104246:hover:not(.disabled) {
         background: #3578e5;
     }
     
-    .frame-1410104246:active {
+    .frame-1410104246:active:not(.disabled) {
         background: #2d6bd1;
+    }
+    
+    .frame-1410104246.disabled {
+        background: #cccccc;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .frame-1410104246.disabled:hover {
+        background: #cccccc;
     }
 
     .heading_01 {

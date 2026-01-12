@@ -501,6 +501,10 @@
             storyGenerated = true;
         } catch (error) {
             console.error('Error generating interactive story:', error);
+            // Set error flag in sessionStorage
+            if (browser) {
+                sessionStorage.setItem('storyGenerationError', 'true');
+            }
             // Set progress to 100% to allow navigation even on error
             storyTextProgress = 100;
             sceneImageProgress = 0;
@@ -601,6 +605,8 @@
                 console.log('Interactive story saved successfully:', result.data);
                 if (browser && result.data.uid) {
                     sessionStorage.setItem('currentStoryId', result.data.uid.toString());
+                    // Clear any error flag since story was saved successfully
+                    sessionStorage.removeItem('storyGenerationError');
                     storyCreation.update(state => ({
                         ...state,
                         storyId: result.data.uid.toString()
@@ -608,9 +614,17 @@
                 }
             } else {
                 console.error('Failed to save interactive story:', result.error);
+                // Set error flag if story save fails
+                if (browser) {
+                    sessionStorage.setItem('storyGenerationError', 'true');
+                }
             }
         } catch (error) {
             console.error('Error saving interactive story to database:', error);
+            // Set error flag if story save fails
+            if (browser) {
+                sessionStorage.setItem('storyGenerationError', 'true');
+            }
         }
     }
 
@@ -698,6 +712,8 @@
                 // Store story ID in session storage and story creation store
                 if (browser && result.data.uid) {
                     sessionStorage.setItem('currentStoryId', result.data.uid.toString());
+                    // Clear any error flag since story was saved successfully
+                    sessionStorage.removeItem('storyGenerationError');
                     storyCreation.update(state => ({
                         ...state,
                         storyId: result.data.uid.toString()
@@ -705,9 +721,17 @@
                 }
             } else {
                 console.error('Failed to save story:', result.error);
+                // Set error flag if story save fails
+                if (browser) {
+                    sessionStorage.setItem('storyGenerationError', 'true');
+                }
             }
         } catch (error) {
             console.error('Error saving story to database:', error);
+            // Set error flag if story save fails
+            if (browser) {
+                sessionStorage.setItem('storyGenerationError', 'true');
+            }
         }
     }
     
@@ -1082,6 +1106,10 @@
             storyGenerated = true;
         } catch (error) {
             console.error('Error generating story:', error);
+            // Set error flag in sessionStorage
+            if (browser) {
+                sessionStorage.setItem('storyGenerationError', 'true');
+            }
             // Set progress to 100% to allow navigation even on error
             storyTextProgress = 50;
             sceneImageProgress = 50;
@@ -1265,12 +1293,12 @@
                             </div>
                             <img
                                 class="frame-2147227509_01"
-                                src={previewImage1 || "https://placehold.co/171x218"}
+                                src={"https://placehold.co/171x218"}
                                 alt=""
                             />
                             <img
                                 class="frame-2147227510_01"
-                                src={previewImage2 || "https://placehold.co/171x218"}
+                                src={"https://placehold.co/171x218"}
                                 alt=""
                             />
                         </div>

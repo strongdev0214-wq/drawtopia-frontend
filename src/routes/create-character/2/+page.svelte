@@ -20,10 +20,35 @@
   let selectedStyle = "";
   let lastSelectedStyle = "";
   let checkInterval: ReturnType<typeof setInterval> | null = null;
+  let allImagesGenerated = false;
+  let imageCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   $: if (browser) {
     isMobile = window.innerWidth < 800;
   }
+
+  // Check if all three enhancement images are generated
+  const checkAllImagesGenerated = () => {
+    if (!browser || !selectedStyle) {
+      allImagesGenerated = false;
+      return;
+    }
+    
+    const enhancements = ['minimal', 'normal', 'high'];
+    const allGenerated = enhancements.every(enhancement => {
+      const enhancementKey = `enhancementImage_${selectedStyle}_${enhancement}`;
+      const enhancedImageUrl = sessionStorage.getItem(enhancementKey);
+      return enhancedImageUrl && enhancedImageUrl.trim().length > 0;
+    });
+    
+    allImagesGenerated = allGenerated;
+    
+    // Clear interval if all images are generated
+    if (allGenerated && imageCheckInterval) {
+      clearInterval(imageCheckInterval);
+      imageCheckInterval = null;
+    }
+  };
 
   // Watch for selected enhancement and store the enhanced image when available
   $: if (browser && selectedEnhancement && selectedStyle) {
@@ -40,10 +65,32 @@
         clearInterval(checkInterval);
         checkInterval = null;
       }
+      
+      // Check if all images are now generated
+      checkAllImagesGenerated();
     }
   }
 
-  onMount(async () => {
+  // Periodically check if all images are generated when style is available
+  $: if (browser && selectedStyle) {
+    // Clear existing interval if it exists
+    if (imageCheckInterval) {
+      clearInterval(imageCheckInterval);
+      imageCheckInterval = null;
+    }
+    
+    // Initial check
+    checkAllImagesGenerated();
+    
+    // Set up periodic check every 500ms only if not all images are generated yet
+    if (!allImagesGenerated) {
+      imageCheckInterval = setInterval(() => {
+        checkAllImagesGenerated();
+      }, 500);
+    }
+  }
+
+  onMount(() => {
     if (browser) {
       // Get the uploaded image URL and selected style from previous steps
       uploadedImageUrl = sessionStorage.getItem('characterImageUrl') || "";
@@ -64,13 +111,37 @@
       
       // No longer generating base character image with special ability
       // Using original uploaded image directly
+      
+      // Initial check for all images
+      checkAllImagesGenerated();
     }
+    
+    // Cleanup interval on unmount
+    return () => {
+      if (imageCheckInterval) {
+        clearInterval(imageCheckInterval);
+        imageCheckInterval = null;
+      }
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
+      }
+    };
   });
 
 
   // Watch for style changes - no longer generating base character image
   $: if (browser && selectedStyle && lastSelectedStyle && selectedStyle !== lastSelectedStyle) {
     lastSelectedStyle = selectedStyle;
+    // Reset allImagesGenerated when style changes since new images need to be generated
+    allImagesGenerated = false;
+    // Clear existing check interval
+    if (imageCheckInterval) {
+      clearInterval(imageCheckInterval);
+      imageCheckInterval = null;
+    }
+    // Start checking again for new style
+    checkAllImagesGenerated();
   }
 
   function selectEnhancement(enhancement: string) {
@@ -123,7 +194,7 @@
 
   // Handle continue to next step - collect all enhanced images
   const handleContinue = () => {
-    if (!browser) return;
+    if (!browser || !allImagesGenerated) return;
     
     try {
       // Get the selected enhanced image URL
@@ -283,6 +354,8 @@
         <button
           class="button_02"
           class:mobile-full-width={isMobile}
+          class:disabled={!allImagesGenerated}
+          disabled={!allImagesGenerated}
           on:click={handleContinue}
         >
           <div class="continue-to-story-configuration">
@@ -599,6 +672,19 @@
     display: flex;
     border: none;
     cursor: pointer;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+  }
+
+  .button_02:disabled,
+  .button_02.disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .button_02:disabled:hover,
+  .button_02.disabled:hover {
+    background: #cccccc;
   }
 
   .button {

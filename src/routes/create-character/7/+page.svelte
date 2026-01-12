@@ -31,6 +31,13 @@
 
   // Title options with character name
   let titleOptions: string[] = [];
+  
+  // Computed property to check if continue button should be enabled
+  $: canContinue = !isGeneratingImage && 
+                   selectedImageFromStep6 && 
+                   selectedImageFromStep6.trim().length > 0 &&
+                   selectedTitle && 
+                   selectedTitle.trim().length > 0;
 
   $: if (browser) {
     isMobile = window.innerWidth < 800;
@@ -203,6 +210,9 @@
 
   // Handle preview story button click
   const handleContinueToDedicationPage = () => {
+    // Only proceed if conditions are met
+    if (!canContinue) return;
+    
     // Update story creation store with final story presentation data
     // Include the cover image URL if available
     const coverImageUrl = selectedImageFromStep6 ? selectedImageFromStep6.split('?')[0] : undefined;
@@ -437,6 +447,8 @@
       <button
         class="button-fill"
         class:mobile-full-width={isMobile}
+        class:disabled={!canContinue}
+        disabled={!canContinue}
         on:click={handleContinueToDedicationPage}
       >
         <div class="continue-to-style-selection">
@@ -771,6 +783,21 @@
     align-items: center;
     gap: 10px;
     display: inline-flex;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+  }
+
+  .button-fill:disabled,
+  .button-fill.disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .button-fill:disabled:hover,
+  .button-fill.disabled:hover {
+    background: #cccccc;
   }
 
   .image {

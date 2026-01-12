@@ -17,6 +17,7 @@
   import dotsThreeOutline from '../../../assets/DotsThreeOutline.svg';
   import zoomIcon from '../../../assets/zoomIcon.svg';
   import arrowleft from '../../../assets/ArrowLeft.svg';
+  import dedicationLeft from "../../../assets/dedicationleft.png";
   import { enhance } from "$app/forms";
   import ShareStoryModal from "../../../components/ShareStoryModal.svelte";
   import StoryInfoModal from "../../../components/StoryInfoModal.svelte";
@@ -44,6 +45,11 @@
   
   let showStoryInfoModal = false;
   let showShareStoryModal = false;
+
+  // Dedication data
+  let dedicationText = '';
+  let dedicationImage = '';
+  let hasDedication = false;
 
   // Drag selection state
   let imageWrapperRef: HTMLDivElement | null = null;
@@ -330,12 +336,26 @@
             
             console.log('[intersearch/1] Parsed story content:', content);
             
-            // Build generatedImages array: [cover, scene1, scene2, scene3, scene4]
+            // Build generatedImages array: [cover, dedication (optional), scene1, scene2, scene3, scene4]
             const images: string[] = [];
             
             // Add cover
             if (content.cover) {
               images.push(content.cover.split('?')[0]);
+            }
+            
+            // Check for dedication and insert after cover if it exists
+            if (story[0].dedication_text || story[0].dedication_image) {
+              dedicationText = story[0].dedication_text || '';
+              dedicationImage = story[0].dedication_image ? story[0].dedication_image.split("?")[0] : '';
+              hasDedication = true;
+              
+              // Insert dedication scene after cover (at index 1)
+              // We'll use a special marker for dedication
+              if (images.length > 0) {
+                images.splice(1, 0, 'DEDICATION_PAGE');
+                console.log('[intersearch/1] Added dedication page after cover');
+              }
             }
             
             // Add scenes
@@ -427,8 +447,8 @@
   }
 
   function handleMouseDown(event: MouseEvent) {
-    // Disable selection for cover (index 0) - cover is not searchable
-    if (!imageWrapperRef || generatedImages.length === 0 || currentSceneIndex === 0) return;
+    // Disable selection for cover (index 0) and dedication page (index 1 if hasDedication) - these are not searchable
+    if (!imageWrapperRef || generatedImages.length === 0 || currentSceneIndex === 0 || (hasDedication && currentSceneIndex === 1)) return;
     
     const rect = imageWrapperRef.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -487,6 +507,14 @@
   async function cropImage() {
     if (!imageRef || !imageWrapperRef || generatedImages.length === 0) return null;
     
+    // Skip if current scene is cover, dedication, or invalid
+    if (currentSceneIndex === 0 || 
+        (hasDedication && currentSceneIndex === 1) ||
+        !generatedImages[currentSceneIndex] ||
+        generatedImages[currentSceneIndex] === 'DEDICATION_PAGE') {
+      return null;
+    }
+    
     const img = imageRef;
     const wrapperRect = imageWrapperRef.getBoundingClientRect();
     const imgRect = img.getBoundingClientRect();
@@ -541,6 +569,9 @@
     try {
       // Fetch the image as a blob to avoid CORS issues
       const imageUrl = generatedImages[currentSceneIndex];
+      if (!imageUrl || imageUrl === 'DEDICATION_PAGE') {
+        return null;
+      }
       const response = await fetch(imageUrl);
       if (!response.ok) {
         throw new Error('Failed to fetch image');
@@ -722,6 +753,8 @@
   }
 
   async function calculateSimilarity(characterImageUrl: string, croppedImageUrl: string): Promise<number> {
+    if (!characterImageUrl || !croppedImageUrl) return 0;
+    
     try {
       // Resize both images to the same standard size (512x512) before comparison
       const standardSize = 512;
@@ -1036,9 +1069,9 @@
             on:mousemove={handleMouseMove}
             on:mouseup={handleMouseUp}
             on:mouseleave={handleMouseUp}
-            role={currentSceneIndex === 0 ? "img" : "application"}
-            tabindex={currentSceneIndex === 0 ? -1 : 0}
-            aria-label={currentSceneIndex === 0 ? "Cover image" : "Image selection area"}
+            role={currentSceneIndex === 0 || (hasDedication && currentSceneIndex === 1) ? "img" : "application"}
+            tabindex={currentSceneIndex === 0 || (hasDedication && currentSceneIndex === 1) ? -1 : 0}
+            aria-label={currentSceneIndex === 0 ? "Cover image" : (hasDedication && currentSceneIndex === 1) ? "Dedication page" : "Image selection area"}
           >
             {#if currentSceneIndex === 0}
               <!-- Cover: Single image display -->
@@ -1051,7 +1084,39 @@
                   draggable="false"
                 />
               </div>
-            {:else}
+            {:else if hasDedication && currentSceneIndex === 1 && generatedImages[currentSceneIndex] === 'DEDICATION_PAGE'}
+              <!-- Dedication Page: Left blank, Right with dedication image and text -->
+              <div class="mobile-image-split">
+                <div class="mobile-image-half mobile-image-left dedication-blank">
+                  <div class="image dedication-blank-page">
+                    <!-- White blank page -->
+                    <img
+                      src={dedicationLeft}
+                      alt="Dedication"
+                      class="dedication-image"
+                      draggable="false"
+                    />
+                  </div>
+                </div>
+                <div class="mobile-image-half mobile-image-right dedication-page">
+                  <div class="image dedication-content">
+                    {#if dedicationImage}
+                      <img
+                        src={dedicationImage}
+                        alt="Dedication"
+                        class="dedication-image"
+                        draggable="false"
+                      />
+                    {/if}
+                    {#if dedicationText}
+                      <div class="dedication-text-container">
+                        <p class="dedication-text">{dedicationText}</p>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {:else if generatedImages[currentSceneIndex] && generatedImages[currentSceneIndex] !== 'DEDICATION_PAGE'}
               <!-- Scenes 1-4: Split into left and right halves -->
               <div class="mobile-image-split">
                 <div class="mobile-image-half mobile-image-left">
@@ -1059,7 +1124,7 @@
                     bind:this={imageRef}
                     src={generatedImages[currentSceneIndex]}
                     alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
-                      currentSceneIndex - 1
+                      hasDedication ? currentSceneIndex - 2 : currentSceneIndex - 1
                     ] || `Scene ${currentSceneIndex} - Left`}
                     class="scene-main-image"
                     draggable="false"
@@ -1069,7 +1134,7 @@
                   <img
                     src={generatedImages[currentSceneIndex]}
                     alt={sceneTitles[selectedWorld || "enchanted-forest"]?.[
-                      currentSceneIndex - 1
+                      hasDedication ? currentSceneIndex - 2 : currentSceneIndex - 1
                     ] || `Scene ${currentSceneIndex} - Right`}
                     class="scene-main-image"
                     draggable="false"
@@ -1082,7 +1147,7 @@
                 <img src={fullscreen} alt="fullscreen" class="btn-icon-fullscreen" />
                 <div><span class="fullscreenpreview_span">Full Screen Preview</span></div>
               </button>
-              {#if currentSceneIndex !== 0}
+              {#if currentSceneIndex !== 0 && !(hasDedication && currentSceneIndex === 1)}
                 <button class="notification_01" aria-label="Hint">
                   <img src={hintIcon} alt="Hint" class="btn-icon-hint" />
                   <div><span class="hint3left_span">Hint ({hintsLeft} Left)</span></div>
@@ -1166,10 +1231,10 @@
             >
               {#if idx === 0}
                 <img src={coverIcon} alt="cover icon" />
-              {:else if idx === 1}
+              {:else if idx === 1 && hasDedication && generatedImages[idx] === 'DEDICATION_PAGE'}
                 <img src={mailIcon} alt="dedication icon" />
               {:else}
-                {idx - 1}
+                {hasDedication ? idx - 2 : idx - 1}
               {/if}
             </button>
           {/each}
@@ -2523,5 +2588,66 @@
     .stat-item {
       font-size: 16px;
     }
+  }
+
+  /* Dedication Page Styles */
+  .dedication-blank {
+    background: white;
+  }
+
+  .dedication-blank-page {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dedication-page {
+    background: white;
+  }
+
+  .dedication-content {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    position: relative;
+  }
+
+  .dedication-image {
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .dedication-text-container {
+    width: 70%;
+    display: flex;
+    justify-content: center;
+    margin-top: 120px;
+    padding: 20px;
+    flex-shrink: 0;
+    position: absolute;
+  }
+
+  .dedication-text {
+    font-size: 32px;
+    line-height: 1.8;
+    color: #333;
+    margin: 0;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    text-align: center;
+    max-width: 100%;
+    word-wrap: break-word;
   }
 </style>
