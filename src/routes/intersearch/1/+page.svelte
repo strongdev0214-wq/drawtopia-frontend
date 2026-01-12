@@ -21,16 +21,12 @@
   import ShareStoryModal from "../../../components/ShareStoryModal.svelte";
   import StoryInfoModal from "../../../components/StoryInfoModal.svelte";
   import { env } from '../../../lib/env';
-  import { buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
-  import { createStory, getStoryById, updateReadingState } from '../../../lib/database/stories';
-  import { storyCreation } from '../../../lib/stores/storyCreation';
+  import { getStoryById, updateReadingState } from '../../../lib/database/stories';
   import { user } from '../../../lib/stores/auth';
-  import { get } from 'svelte/store';
 
   let activePage = 1;
   const totalPages = 5; // cover + 4 scenes
 
-  let generating = false;
   let generatedImages: string[] = [];
   let currentSceneIndex = 0;
   let selectedWorld: string | null = null;
@@ -208,260 +204,6 @@
   }
 
 
-  async function generateAllImages() {
-    if (!characterImageUrl || !selectedWorld) return;
-
-    generating = true;
-    generatedImages = [];
-
-    try {
-      // Load character and story data from sessionStorage
-      const charName = characterName || sessionStorage.getItem('characterName') || 'Character';
-      const charType = characterType || sessionStorage.getItem('selectedCharacterType') || 'person';
-      const ability = specialAbility || sessionStorage.getItem('specialAbility') || '';
-      const title = storyTitle || sessionStorage.getItem('storyTitle') || 'Adventure Story';
-      const style = selectedStyle || 'cartoon';
-      const ageGroup = sessionStorage.getItem('ageGroup') || '7-10';
-
-      // Generate cover first, then scenes 1-4
-      const scenePrompts: string[] = [];
-      
-      // Generate cover (scene 0)
-      const coverPrompt = buildIntersearchCoverPrompt({
-        characterName: charName,
-        characterType: charType,
-        characterStyle: style as '3d' | 'cartoon' | 'anime',
-        specialAbility: ability,
-        storyWorld: selectedWorld!,
-        ageGroup: ageGroup,
-        difficulty: selectedDifficulty || 'medium',
-        sceneNumber: 0, // Cover is scene 0
-        characterReferenceImage: characterImageUrl || undefined,
-        storyTitle: title
-      });
-      scenePrompts.push(coverPrompt);
-
-      // Generate scenes 1-4
-      for (let sceneNum = 1; sceneNum <= 4; sceneNum++) {
-        const sceneIndex = sceneNum - 1;
-        const sceneInfo = getSceneInfo(selectedWorld!, sceneIndex);
-        const sceneTitle = sceneTitles[selectedWorld!]?.[sceneIndex] || `Scene ${sceneNum}`;
-
-        // Build the intersearch scene prompt using the promptBuilder function
-        const scenePrompt = buildIntersearchScenePrompt({
-          sceneNumber: sceneNum,
-          storyTitle: title,
-          storyWorld: selectedWorld!,
-          characterName: charName,
-          characterType: charType,
-          characterStyle: style,
-          specialAbility: ability,
-          ageGroup: ageGroup,
-          sceneTitle: sceneTitle,
-          sceneDescription: sceneInfo.sceneDescription,
-          characterActionForScene: sceneInfo.characterAction,
-          characterEmotionForScene: sceneInfo.characterEmotion,
-          storyContinuationForThisScene: sceneInfo.storyContext
-        });
-
-        // Build the search adventure prompt using prompt1.json
-        const searchAdventurePrompt = buildIntersearchSearchAdventurePrompt({
-          characterName: charName,
-          characterType: charType,
-          characterStyle: style as '3d' | 'cartoon' | 'anime',
-          specialAbility: ability,
-          storyWorld: selectedWorld!,
-          ageGroup: ageGroup,
-          difficulty: selectedDifficulty || 'medium',
-          sceneNumber: sceneNum,
-          characterReferenceImage: characterImageUrl || undefined
-        });
-
-        // Combine the intersearch scene prompt with the search adventure prompt
-        const combinedPrompt = `${scenePrompt}\n\n${searchAdventurePrompt}`;
-        scenePrompts.push(combinedPrompt);
-      }
-
-      const promises = scenePrompts.map(async (prompt, index) => {
-        // Generate image using the combined prompt via API
-        const response = await fetch(
-          'https://drawtopia-backend.vercel.app/edit-image',
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              image_url: characterImageUrl,
-              prompt: prompt,
-            }),
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to generate image ${index + 1}: ${response.status}`,
-          );
-        }
-
-        const data = await response.json();
-
-        if (data.storage_info?.uploaded && data.storage_info?.url) {
-          const cleanUrl = data.storage_info.url.split("?")[0];
-          return cleanUrl;
-        } else {
-          throw new Error(`No image URL received for scene ${index + 1}`);
-        }
-      });
-
-      const results = await Promise.allSettled(promises);
-      generatedImages = results
-        .map((result, index) => {
-          if (result.status === "fulfilled") {
-            return result.value;
-          } else {
-            const sceneName = index === 0 ? 'cover' : `scene ${index}`;
-            console.error(
-              `Failed to generate ${sceneName}:`,
-              result.reason,
-            );
-            return "";
-          }
-        })
-        .filter((url) => url !== "");
-
-      // Save search adventure to Supabase after all scenes are generated
-      if (generatedImages.length > 0) {
-        const savedStoryId = await saveSearchAdventureToDatabase(generatedImages);
-        if (savedStoryId) {
-          // Redirect to the same page with the story ID to display it
-          goto(`/intersearch/1?storyId=${savedStoryId}`);
-        }
-      }
-    } catch (error) {
-      console.error("Error generating images:", error);
-      alert("Failed to generate images. Please try again.");
-    } finally {
-      generating = false;
-    }
-  }
-
-  // Save search adventure to Supabase database
-  async function saveSearchAdventureToDatabase(sceneImages: string[]): Promise<string | null> {
-    try {
-      // Get story creation state
-      const storyState = get(storyCreation);
-      
-      // Get child profile ID from sessionStorage or story state
-      const childProfileId = storyState.selectedChildProfileId || 
-                            (browser ? sessionStorage.getItem('selectedChildProfileId') : null);
-      
-      if (!childProfileId || childProfileId === 'undefined') {
-        console.warn('Cannot save search adventure: No child profile selected');
-        return null;
-      }
-
-      // Get character data from sessionStorage or story state
-      const charName = characterName || storyState.characterName || 
-                       (browser ? sessionStorage.getItem('characterName') : null) || 'Character';
-      const charType = characterType || storyState.characterType || 
-                       (browser ? sessionStorage.getItem('selectedCharacterType') : null) || 'person';
-      const ability = specialAbility || storyState.specialAbility || 
-                      (browser ? sessionStorage.getItem('specialAbility') : null) || '';
-      const style = selectedStyle || storyState.characterStyle || 
-                    (browser ? sessionStorage.getItem('selectedStyle') : null) || 'cartoon';
-      const world = selectedWorld || storyState.storyWorld || 
-                    (browser ? sessionStorage.getItem('intersearch_world') : null) || 'forest';
-      const title = storyTitle || storyState.storyTitle || 
-                    (browser ? sessionStorage.getItem('storyTitle') : null) || 
-                    `${charName}'s Search Adventure`;
-      const originalImage = characterImageUrl || storyState.originalImageUrl || 
-                            (browser ? sessionStorage.getItem('characterImageUrl') : null) || '';
-
-      if (!originalImage) {
-        console.warn('Cannot save search adventure: No original image URL found');
-        return null;
-      }
-
-      // Map world names to database format
-      const worldMap: { [key: string]: 'forest' | 'space' | 'underwater' } = {
-        'enchanted-forest': 'forest',
-        'outer-space': 'space',
-        'underwater-kingdom': 'underwater',
-        'forest': 'forest',
-        'space': 'space',
-        'underwater': 'underwater'
-      };
-      const dbWorld = worldMap[world] || 'forest';
-
-      // Map character type to database format
-      const typeMap: { [key: string]: 'person' | 'animal' | 'magical_creature' } = {
-        'person': 'person',
-        'animal': 'animal',
-        'magical': 'magical_creature',
-        'magical_creature': 'magical_creature'
-      };
-      const dbType = typeMap[charType] || 'person';
-
-      // Prepare story content for search adventure
-      // Store scene information with titles
-      // First image is cover, rest are scenes 1-4
-      const storyContent = {
-        type: 'search_adventure',
-        cover: sceneImages[0]?.split('?')[0] || undefined,
-        scenes: sceneImages.slice(1).map((url, index) => ({
-          sceneNumber: index + 1,
-          sceneImage: url.split('?')[0],
-          sceneTitle: sceneTitles[world]?.[index] || `Scene ${index + 1}`,
-          difficulty: selectedDifficulty || 'medium'
-        })),
-        world: world,
-        difficulty: selectedDifficulty || 'medium'
-      };
-
-      // Get character_id from sessionStorage
-      const characterIdStr = browser ? sessionStorage.getItem('characterId') : null;
-      const characterId = characterIdStr ? parseInt(characterIdStr) : undefined;
-
-      // Prepare story data
-      const storyData = {
-        user_id: $user?.id,
-        child_profile_id: childProfileId,
-        character_id: characterId,
-        character_name: charName,
-        character_type: dbType,
-        special_ability: ability || undefined,
-        character_style: style as '3d' | 'cartoon' | 'anime',
-        story_world: dbWorld,
-        adventure_type: 'treasure_hunt' as const, // Default for search adventures
-        original_image_url: originalImage.split('?')[0],
-        enhanced_images: storyState.enhancedImages || [],
-        story_title: title,
-        story_cover: sceneImages[0]?.split('?')[0] || undefined, // First image is cover
-        cover_design: undefined,
-        story_content: JSON.stringify(storyContent),
-        scene_images: sceneImages.slice(1).map(url => url.split('?')[0]), // Scenes 1-4 (skip cover)
-        status: 'completed' as const,
-        story_type: 'search' as const
-      };
-
-      console.log('Saving search adventure to database:', storyData);
-
-      const result = await createStory(storyData);
-
-      if (result.success && result.data) {
-        console.log('Search adventure saved successfully:', result.data);
-        // Return the story UID for navigation
-        return result.data.uid || result.data.id;
-      } else {
-        console.error('Failed to save search adventure:', result.error);
-        return null;
-      }
-    } catch (error) {
-      console.error('Error saving search adventure to database:', error);
-      return null;
-    }
-  }
 
   // Start reading timer
   function startReadingTimer() {
@@ -547,112 +289,84 @@
       // Get story ID from URL query params
       storyId = $page.url.searchParams.get('storyId');
       
-      if (storyId) {
-        // Load existing story from database
-        isLoading = true;
-        try {
-          const result = await getStoryById(storyId);
-          
-          if (!result.success || !result.data) {
-            loadError = result.error || "Failed to load story";
-            isLoading = false;
-            console.error("Failed to fetch story:", result.error);
-            return;
-          }
-          
-          const story = result.data;
-          console.log("Loaded interactive search story:", story);
-          
-          // Set story details
-          storyTitle = story[0].story_title || story[0].character_name || "Search Adventure";
-          characterName = story[0].character_name;
-          selectedWorld = story[0].story_world === 'forest' ? 'enchanted-forest' : 
-                          story[0].story_world === 'space' ? 'outer-space' : 
-                          story[0].story_world === 'underwater' ? 'underwater-kingdom' : 
-                          'enchanted-forest';
-          
-          // Load story content to get scenes
-          if (story[0].story_content) {
-            try {
-              const content = typeof story[0].story_content === 'string' 
-                ? JSON.parse(story[0].story_content) 
-                : story[0].story_content;
-              
-              console.log('[intersearch/1] Parsed story content:', content);
-              
-              // Build generatedImages array: [cover, scene1, scene2, scene3, scene4]
-              const images: string[] = [];
-              
-              // Add cover
-              if (content.cover) {
-                images.push(content.cover.split('?')[0]);
-              }
-              
-              // Add scenes
-              if (content.scenes && Array.isArray(content.scenes)) {
-                content.scenes.forEach((scene: any) => {
-                  if (scene.sceneImage) {
-                    images.push(scene.sceneImage.split('?')[0]);
-                  }
-                });
-              }
-              
-              if (images.length > 0) {
-                generatedImages = images;
-                currentSceneIndex = 0;
-                console.log('[intersearch/1] Loaded scene images:', generatedImages);
-              }
-              
-              // Get difficulty from content
-              if (content.difficulty) {
-                selectedDifficulty = content.difficulty;
-              }
-            } catch (error) {
-              console.error('Error parsing story content:', error);
-            }
-          }
-          
-          isLoading = false;
-        } catch (error) {
-          console.error('Error loading story:', error);
-          loadError = error instanceof Error ? error.message : "An unexpected error occurred";
-          isLoading = false;
-        }
-      } else {
-        // No storyId in URL, check if we need to generate
+      if (!storyId) {
+        // No storyId provided, redirect to intersearch page
+        loadError = "No story ID provided. Please select a story to view.";
         isLoading = false;
+        goto("/intersearch");
+        return;
+      }
+      
+      // Load existing story from database
+      isLoading = true;
+      try {
+        const result = await getStoryById(storyId);
         
-        // Load settings from sessionStorage for generation
-        selectedWorld = sessionStorage.getItem("intersearch_world");
-        selectedDifficulty = sessionStorage.getItem("intersearch_difficulty");
-        characterImageUrl = sessionStorage.getItem("characterImageUrl");
-        selectedStyle = sessionStorage.getItem('selectedStyle');
-        selectedEnhancement = sessionStorage.getItem('selectedEnhancement');
-        characterName = sessionStorage.getItem('characterName');
-        characterType = sessionStorage.getItem('selectedCharacterType');
-        specialAbility = sessionStorage.getItem('specialAbility');
-        storyTitle = sessionStorage.getItem('storyTitle');
-
-        // Check if we should generate
-        const shouldRegenerate = sessionStorage.getItem("intersearch_regenerate") === "true";
-        
-        if (shouldRegenerate) {
-          sessionStorage.removeItem("intersearch_regenerate");
-          // Generate new images
-          if (characterImageUrl && selectedWorld) {
-            generateAllImages();
-          } else {
-            alert("Please complete character setup first");
-            goto("/intersearch");
-          }
-        } else if (characterImageUrl && selectedWorld) {
-          // Auto-generate on first visit
-          generateAllImages();
-        } else {
-          // No setup data available
-          alert("Please complete character setup first");
-          goto("/intersearch");
+        if (!result.success || !result.data) {
+          loadError = result.error || "Failed to load story";
+          isLoading = false;
+          console.error("Failed to fetch story:", result.error);
+          return;
         }
+        
+        const story = result.data;
+        console.log("Loaded interactive search story:", story);
+        
+        // Set story details
+        storyTitle = story[0].story_title || story[0].character_name || "Search Adventure";
+        characterName = story[0].character_name;
+        characterImageUrl = story[0].original_image_url || null;
+        selectedWorld = story[0].story_world === 'forest' ? 'enchanted-forest' : 
+                        story[0].story_world === 'space' ? 'outer-space' : 
+                        story[0].story_world === 'underwater' ? 'underwater-kingdom' : 
+                        'enchanted-forest';
+        
+        // Load story content to get scenes
+        if (story[0].story_content) {
+          try {
+            const content = typeof story[0].story_content === 'string' 
+              ? JSON.parse(story[0].story_content) 
+              : story[0].story_content;
+            
+            console.log('[intersearch/1] Parsed story content:', content);
+            
+            // Build generatedImages array: [cover, scene1, scene2, scene3, scene4]
+            const images: string[] = [];
+            
+            // Add cover
+            if (content.cover) {
+              images.push(content.cover.split('?')[0]);
+            }
+            
+            // Add scenes
+            if (content.scenes && Array.isArray(content.scenes)) {
+              content.scenes.forEach((scene: any) => {
+                if (scene.sceneImage) {
+                  images.push(scene.sceneImage.split('?')[0]);
+                }
+              });
+            }
+            
+            if (images.length > 0) {
+              generatedImages = images;
+              currentSceneIndex = 0;
+              console.log('[intersearch/1] Loaded scene images:', generatedImages);
+            }
+            
+            // Get difficulty from content
+            if (content.difficulty) {
+              selectedDifficulty = content.difficulty;
+            }
+          } catch (error) {
+            console.error('Error parsing story content:', error);
+          }
+        }
+        
+        isLoading = false;
+      } catch (error) {
+        console.error('Error loading story:', error);
+        loadError = error instanceof Error ? error.message : "An unexpected error occurred";
+        isLoading = false;
       }
       
       // Start reading time tracker
@@ -714,7 +428,7 @@
 
   function handleMouseDown(event: MouseEvent) {
     // Disable selection for cover (index 0) - cover is not searchable
-    if (!imageWrapperRef || generating || generatedImages.length === 0 || currentSceneIndex === 0) return;
+    if (!imageWrapperRef || generatedImages.length === 0 || currentSceneIndex === 0) return;
     
     const rect = imageWrapperRef.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -1311,14 +1025,6 @@
           Retry
         </button>
       </div>
-    {:else if generating}
-      <div class="generating-container">
-        <div class="generating-spinner"></div>
-        <div class="generating-text">
-          Generating your cover and 4 adventure scenes...
-        </div>
-        <div class="generating-progress">This may take a few moments</div>
-      </div>
     {:else if generatedImages.length > 0}
       <div class="scene-view-container">
         <div class="scene-image-container">
@@ -1444,7 +1150,7 @@
       <button
         class="preview-nav-btn"
         on:click={previousScene}
-        disabled={currentSceneIndex === 0 || isLoading || generating}>
+        disabled={currentSceneIndex === 0 || isLoading}>
         <img src={arrowleft} alt="Arrow Left" />
         <span class="previousscene_span">Previous</span>
       </button>
@@ -1456,7 +1162,7 @@
               class:active={currentSceneIndex === idx}
               on:click={() => goToScene(idx)}
               aria-label={idx === 0 ? "Go to cover" : idx === 1 ? "Go to dedication" : `Go to scene ${idx - 1}`}
-              disabled={generating || isLoading}
+              disabled={isLoading}
             >
               {#if idx === 0}
                 <img src={coverIcon} alt="cover icon" />
@@ -1498,14 +1204,12 @@
       <button
         class="preview-start-btn"
         on:click={handleStartScene1}
-        disabled={generating || isLoading || generatedImages.length === 0}
+        disabled={isLoading || generatedImages.length === 0}
       >
         <div class="next-scene-btn-content">
           <span class="nextscene_span">
             {isLoading 
               ? "Loading..." 
-              : generating 
-              ? "Generating..." 
               : currentSceneIndex === generatedImages.length - 1 
                 ? "Show Results" 
                 : currentSceneIndex === 0 
@@ -1521,7 +1225,7 @@
       <button 
         class="button-nav" 
         on:click={previousScene}
-        disabled={currentSceneIndex === 0 || isLoading || generating}
+        disabled={currentSceneIndex === 0 || isLoading}
       >
         <img src={arrowleft} alt="Arrow Left" class="arrowleft-nav" />
         <div class="previous-scene"><span class="previousscene_span">Previous</span></div>
@@ -1529,7 +1233,7 @@
       <button 
         class="button_01-nav" 
         on:click={handleStartScene1}
-        disabled={generating || isLoading || generatedImages.length === 0}
+        disabled={isLoading || generatedImages.length === 0}
       >
         <div class="next-scene"><span class="nextscene_span">
           {currentSceneIndex === generatedImages.length - 1 ? "Results" : "Next Scene"}

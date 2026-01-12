@@ -11,7 +11,7 @@
   import small from "../../../assets/small.png";
   import classic from "../../../assets/classic.png";
   import { storyCreation } from "../../../lib/stores/storyCreation";
-  import { getSelectedImageUrl, generateStyledImage, saveSelectedImageUrl } from "../../../lib/imageGeneration";
+  import { generateIntersearchCover, generateStyledImage, saveSelectedImageUrl } from "../../../lib/imageGeneration";
 
   let isMobile = false;
   let characterName = "";
@@ -20,9 +20,11 @@
   let selectedEnhancement = "";
   let selectedWorld = "";
   let selectedAdventure = "";
+  let selectedFormat = "";
   let enhancedCharacterImage = "";
   let isGeneratingImage = false;
-  
+  let intersearchWorld = "";
+  let intersearchDifficulty = "";
   // Selection state variables - these will be updated with the character name
   let selectedTitle = "The Great Addventure [Your Name]";
   let selectedCoverDesign = "Classic Storybook";
@@ -62,6 +64,7 @@
       selectedEnhancement = sessionStorage.getItem('selectedEnhancement') || "";
       selectedWorld = sessionStorage.getItem('selectedWorld') || "";
       selectedAdventure = sessionStorage.getItem('selectedAdventure') || "";
+      selectedFormat = sessionStorage.getItem('selectedFormat') || "";
       
       // Get the enhanced character image from step 4
       const enhancementKey = `enhancementImage_${selectedStyle}_${selectedEnhancement}`;
@@ -73,6 +76,8 @@
       // Generate images: first environment, then adventure
       if (enhancedCharacterImage && selectedWorld && selectedAdventure) {
         await generateImages();
+      } else if (selectedFormat === "interactive") {
+        await generateInteractiveSearchCover();
       }
     }
   });
@@ -167,6 +172,30 @@
     }
   };
 
+  // Generate interactive search story cover
+  const generateInteractiveSearchCover = async () => {
+    if (isGeneratingImage) return;
+    
+    isGeneratingImage = true;
+    
+    try {
+      // Generate the intersearch cover using the new function
+      const result = await generateIntersearchCover();
+      
+      if (result.success && result.url) {
+        selectedImageFromStep6 = result.url;
+        saveSelectedImageUrl('6', result.url);
+        storyCreation.setOriginalImageUrl(result.url);
+      } else {
+        console.error('Failed to generate intersearch cover:', result.error);
+      }
+    } catch (error) {
+      console.error('Error generating interactive search cover:', error);
+    } finally {
+      isGeneratingImage = false;
+    }
+  };
+
   // Title selection handler
   function selectTitle(title: string) {
     selectedTitle = title;
@@ -179,17 +208,17 @@
     const coverImageUrl = selectedImageFromStep6 ? selectedImageFromStep6.split('?')[0] : undefined;
     storyCreation.setStoryPresentation(selectedTitle, selectedCoverDesign, coverImageUrl);
     
-    // Determine which dedication page to navigate to based on the story creation procedure
-    let dedicationPath = "/create-character/dedication/create-send"; // Default to create-send
+    // Determine which dedication page to navigate to based on the gift_mode from sessionStorage
+    let dedicationPath = "/create-character/dedication/creation-link"; // Default to creation-link
     
     if (browser) {
       const giftMode = sessionStorage.getItem("gift_mode");
-      if (giftMode === "link") {
-        // If the flow is "Send Creation Link", go to creation-link dedication page
-        dedicationPath = "/create-character/dedication/creation-link";
-      } else {
-        // If the flow is "Create & Send" or not set (dashboard flow), go to create-send dedication page
+      if (!giftMode || giftMode === "create") {
+        // If the flow is "Create & Send", go to create-send dedication page
         dedicationPath = "/create-character/dedication/create-send";
+      } else {
+        // If the flow is "Send Creation Link" or not set, go to creation-link dedication page
+        dedicationPath = "/create-character/dedication/creation-link";
       }
     }
     
@@ -764,7 +793,7 @@
   }
 
   .image {
-    align-self: stretch;
+    align-self: center;
     height: 837px;
     position: relative;
     border-radius: 12px;
@@ -877,139 +906,6 @@
     border: 2px #ededed solid;
   }
 
-  .selectyourbookcoverdesign_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Quicksand;
-    font-weight: 600;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .select-your-book-cover-design {
-    align-self: stretch;
-  }
-
-  .frame-1410104088 {
-    width: 80px;
-    height: 91px;
-    position: relative;
-    background: white;
-    border-radius: 4px;
-  }
-
-  .classicstorybook_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .ornateborderwithtraditionalcharm_span {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .ellipse-13_05 {
-    width: 24px;
-    height: 24px;
-    border-radius: 9999px;
-    border: 1px #ededed solid;
-  }
-
-  .ellipse-14_01 {
-    width: 24px;
-    height: 24px;
-    left: 0px;
-    top: 0px;
-    position: absolute;
-    border-radius: 9999px;
-    border: 1px #438bff solid;
-  }
-
-  .ellipse-13_06 {
-    width: 12px;
-    height: 12px;
-    left: 6px;
-    top: 6px;
-    position: absolute;
-    background: #438bff;
-    border-radius: 9999px;
-    border: 1px #438bff solid;
-  }
-
-  .frame-1410104088_01 {
-    width: 80px;
-    height: 91px;
-    position: relative;
-    background: white;
-    border-radius: 4px;
-  }
-
-  .modernminimalist_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .characterfocuswithcleandesign_span {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .ellipse-13_07 {
-    width: 24px;
-    height: 24px;
-    border-radius: 9999px;
-    border: 1px #ededed solid;
-  }
-
-  .frame-1410104088_02 {
-    width: 80px;
-    height: 91px;
-    position: relative;
-    background: white;
-    border-radius: 4px;
-  }
-
-  .adventuretheme_span {
-    color: #141414;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 500;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .worldelementsanddynamiclayout_span {
-    color: #666d80;
-    font-size: 16px;
-    font-family: Nunito;
-    font-weight: 400;
-    line-height: 22.4px;
-    word-wrap: break-word;
-  }
-
-  .ellipse-13_08 {
-    width: 24px;
-    height: 24px;
-    border-radius: 9999px;
-    border: 1px #ededed solid;
-  }
-
   .frame-1410104034 {
     align-self: stretch;
     padding: 8px;
@@ -1055,40 +951,7 @@
     display: inline-flex;
   }
 
-  .frame-1410103939_04 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 2px;
-    display: inline-flex;
-  }
-
-  .frame-1410103939_05 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 2px;
-    display: inline-flex;
-  }
-
-  .frame-1410103939_06 {
-    flex: 1 1 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 2px;
-    display: inline-flex;
-  }
-
   .frame-1410104043 {
-    width: 24px;
-    height: 24px;
-    position: relative;
-  }
-
-  .frame-1410104043_01 {
     width: 24px;
     height: 24px;
     position: relative;
@@ -1139,30 +1002,6 @@
     align-items: center;
     gap: 12px;
     display: inline-flex;
-  }
-
-  .frame-1410103940_04 {
-    flex: 1 1 0;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: flex;
-  }
-
-  .frame-1410103940_05 {
-    flex: 1 1 0;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: flex;
-  }
-
-  .frame-1410103940_06 {
-    flex: 1 1 0;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: flex;
   }
 
   .selected {
@@ -1237,78 +1076,6 @@
     display: inline-flex;
   }
 
-  .selected_04 {
-    align-self: stretch;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-left: 8px;
-    padding-right: 12px;
-    background: #eef6ff;
-    border-radius: 12px;
-    outline: 1px #438bff solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .selected_04:hover {
-    background: #d9eaff;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(67, 139, 255, 0.15);
-  }
-
-  .selected_05 {
-    align-self: stretch;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-left: 8px;
-    padding-right: 12px;
-    border-radius: 12px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .selected_05:hover {
-    background: #f8f9fa;
-    outline: 1px #c0c0c0 solid;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .selected_06 {
-    align-self: stretch;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-left: 8px;
-    padding-right: 12px;
-    border-radius: 12px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 12px;
-    display: inline-flex;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .selected_06:hover {
-    background: #f8f9fa;
-    outline: 1px #c0c0c0 solid;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
   .selected_03 {
     align-self: stretch;
     padding: 12px;
@@ -1330,34 +1097,12 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
-  .frame-1410103942_01 {
-    align-self: stretch;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 12px;
-    display: flex;
-  }
-
   .frame-1410103942 {
     align-self: stretch;
     flex-direction: column;
     justify-content: flex-start;
     align-items: flex-start;
     gap: 12px;
-    display: flex;
-  }
-
-  .form_02 {
-    align-self: stretch;
-    padding: 12px;
-    border-radius: 10px;
-    outline: 1px #ededed solid;
-    outline-offset: -1px;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: flex-start;
-    gap: 8px;
     display: flex;
   }
 
@@ -1479,8 +1224,7 @@
       line-height: 25.2px;
     }
 
-    .titleselection_span,
-    .selectyourbookcoverdesign_span {
+    .titleselection_span{
       font-size: 14px;
       line-height: 19.6px;
     }
@@ -1488,37 +1232,18 @@
     .selected,
     .selected_01,
     .selected_02,
-    .selected_03,
-    .selected_04,
-    .selected_05,
-    .selected_06 {
+    .selected_03 {
       padding: 8px;
-    }
-
-    .frame-1410104088,
-    .frame-1410104088_01,
-    .frame-1410104088_02 {
-      width: 60px;
-      height: 68px;
     }
 
     .thegreataddventureyourname_span,
     .theamazingofjourneyyourname_span,
     .yournameandthespaceadventure_span,
-    .customtitle_span,
-    .classicstorybook_span,
-    .modernminimalist_span,
-    .adventuretheme_span {
+    .customtitle_span {
       font-size: 14px;
       line-height: 19.6px;
     }
 
-    .ornateborderwithtraditionalcharm_span,
-    .characterfocuswithcleandesign_span,
-    .worldelementsanddynamiclayout_span {
-      font-size: 12px;
-      line-height: 16.8px;
-    }
     .star-container {
       width: 25%;
     }

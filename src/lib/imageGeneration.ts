@@ -1,6 +1,6 @@
 import { browser } from "$app/environment";
 import prompt1Data from "./prompt1.json";
-import { buildEnhancementPrompt } from "./promptBuilder";
+import { buildEnhancementPrompt, buildIntersearchCoverPrompt } from "./promptBuilder";
 
 export interface ImageGenerationResult {
   success: boolean;
@@ -216,6 +216,87 @@ export async function generateStyledImage(options: ImageGenerationOptions): Prom
       
       // Combine BOOK INFORMATION with the combined cover prompt
       prompt = `${bookInfo}\n\n${combinedPrompt}`;
+    } else if (style === 'intersearch') {
+      // Use the interactive search book cover prompt from prompt1.json
+      // Get character details from options or sessionStorage
+      let charName = characterName;
+      let charStyle = '';
+      let storyWorld = '';
+      let charType = '';
+      let storyTitle = '';
+      let ageGroup = '';
+      let ability = specialAbility || '';
+      
+      if (browser) {
+        // Get character name
+        if (!charName) {
+          charName = sessionStorage.getItem('characterName') || 'Character';
+        }
+        
+        // Get character type
+        const storedCharType = sessionStorage.getItem('selectedCharacterType') || 'person';
+        // Map to prompt format
+        if (storedCharType === 'magical_creature' || storedCharType === 'magical') {
+          charType = 'magical';
+        } else if (storedCharType === 'animal') {
+          charType = 'animal';
+        } else {
+          charType = 'person';
+        }
+        
+        // Get character style (3d, cartoon, or anime)
+        const storedStyle = sessionStorage.getItem('selectedStyle') || '';
+        if (storedStyle === '3d' || storedStyle === 'cartoon' || storedStyle === 'anime') {
+          charStyle = storedStyle;
+        } else {
+          // Default to cartoon if not found
+          charStyle = 'cartoon';
+        }
+        
+        // Get story title
+        storyTitle = sessionStorage.getItem('storyTitle') || 'Adventure Story';
+        
+        // Get story world from quality parameter or sessionStorage
+        const world = (quality as string) || sessionStorage.getItem('selectedWorld') || 'forest';
+        
+        // Map world names to prompt1.json format
+        const worldMapping: { [key: string]: string } = {
+          'forest': 'enchanted-forest',
+          'outerspace': 'outer-space',
+          'underwater': 'underwater-kingdom'
+        };
+        
+        storyWorld = worldMapping[world] || 'enchanted-forest';
+        
+        // Get age group
+        ageGroup = sessionStorage.getItem('ageGroup') || '7-10';
+        
+        // Get special ability
+        if (!ability) {
+          ability = sessionStorage.getItem('specialAbility') || '';
+        }
+      } else {
+        // Fallback values for SSR
+        charName = characterName || 'Character';
+        charType = 'person';
+        charStyle = 'cartoon';
+        storyWorld = 'enchanted-forest';
+        storyTitle = 'Adventure Story';
+        ageGroup = '7-10';
+      }
+      
+      // Build the interactive search cover prompt
+      prompt = buildIntersearchCoverPrompt({
+        characterName: charName,
+        characterType: charType,
+        characterDescription: ability || 'special abilities',
+        characterStyle: charStyle as '3d' | 'cartoon' | 'anime',
+        storyWorld: storyWorld,
+        storyTitle: storyTitle,
+        ageGroup: ageGroup,
+        specialAbility: ability,
+        characterReferenceImage: imageUrl
+      });
     } else {
       // Handle other style prompts - use enhancement prompt builder if applicable
       // For styles that aren't character enhancements, create a simple fallback
@@ -552,4 +633,100 @@ export function clearAllCachedImages(): void {
       sessionStorage.removeItem(`adventureImage_${world}_${adventure}`);
     });
   });
+}
+
+/**
+ * Generate interactive search story cover image
+ * Uses the selectedCharacterEnhancedImage from sessionStorage and builds a prompt
+ * using the intersearchCoverPromptBuilder function
+ */
+export async function generateIntersearchCover(): Promise<ImageGenerationResult> {
+  if (!browser) {
+    return { success: false, error: 'Browser environment required' };
+  }
+
+  try {
+    // Get selectedCharacterEnhancedImage from sessionStorage
+    const selectedCharacterEnhancedImage = sessionStorage.getItem('selectedCharacterEnhancedImage');
+    if (!selectedCharacterEnhancedImage) {
+      return { success: false, error: 'No selected character enhanced image found in sessionStorage' };
+    }
+
+    // Get character details from sessionStorage
+    const characterName = sessionStorage.getItem('characterName') || 'Character';
+    const storedCharType = sessionStorage.getItem('selectedCharacterType') || 'person';
+    const storedStyle = sessionStorage.getItem('selectedStyle') || 'cartoon';
+    const storyTitle = sessionStorage.getItem('storyTitle') || 'Adventure Story';
+    const selectedWorld = sessionStorage.getItem('selectedWorld') || 'forest';
+    const ageGroup = sessionStorage.getItem('ageGroup') || '7-10';
+    const specialAbility = sessionStorage.getItem('specialAbility') || '';
+
+    // Map character type
+    let charType: 'person' | 'animal' | 'magical' = 'person';
+    if (storedCharType === 'magical_creature' || storedCharType === 'magical') {
+      charType = 'magical';
+    } else if (storedCharType === 'animal') {
+      charType = 'animal';
+    }
+
+    // Map character style
+    let charStyle: '3d' | 'cartoon' | 'anime' = 'cartoon';
+    if (storedStyle === '3d' || storedStyle === 'cartoon' || storedStyle === 'anime') {
+      charStyle = storedStyle as '3d' | 'cartoon' | 'anime';
+    }
+
+    // Map world names to prompt1.json format
+    const worldMapping: { [key: string]: string } = {
+      'forest': 'enchanted-forest',
+      'outerspace': 'outer-space',
+      'underwater': 'underwater-kingdom'
+    };
+    const storyWorld = worldMapping[selectedWorld] || 'enchanted-forest';
+
+    // Build the interactive search cover prompt using promptBuilder
+    const prompt = buildIntersearchCoverPrompt({
+      characterName: characterName,
+      characterType: charType,
+      characterDescription: specialAbility || 'special abilities',
+      characterStyle: charStyle,
+      storyWorld: storyWorld,
+      storyTitle: storyTitle,
+      ageGroup: ageGroup,
+      specialAbility: specialAbility,
+      characterReferenceImage: selectedCharacterEnhancedImage.split('?')[0]
+    });
+
+    // Call the /edit-image/ endpoint
+    const response = await fetch('https://drawtopia-backend.vercel.app/edit-image/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        image_url: selectedCharacterEnhancedImage.split('?')[0], 
+        prompt: prompt 
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to generate cover image: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.storage_info?.uploaded && data.storage_info?.url) {
+      const cleanUrl = data.storage_info.url.split('?')[0];
+      
+      // Save to sessionStorage
+      sessionStorage.setItem('intersearchCover', cleanUrl);
+      
+      return { success: true, url: cleanUrl };
+    } else {
+      throw new Error('No image URL received from the API');
+    }
+  } catch (err) {
+    console.error('Error generating intersearch cover:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Failed to generate intersearch cover. Please try again.';
+    return { success: false, error: errorMessage };
+  }
 }

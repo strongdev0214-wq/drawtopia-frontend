@@ -48,7 +48,6 @@ function replacePlaceholders(
 ): string {
   let result = template;
   
-  // Replace all placeholders
   result = result.replace(/\{character_name\}/g, options.characterName);
   result = result.replace(/\{character_type\}/g, options.characterType);
   result = result.replace(/\{special_ability\}/g, options.specialAbility);
@@ -147,94 +146,13 @@ export function buildEnhancementPrompt(options: PromptBuilderOptions): string {
  * Gets a simplified prompt for quick reference
  */
 export function getPromptSummary(options: PromptBuilderOptions): string {
-  return `Character: ${options.characterName} (${options.characterType}), Style: ${options.characterStyle}, Ability: ${options.specialAbility}, Level: ${options.enhancementLevel}`;
-}
-
-/**
- * Interface for intersearch scene prompt options
- */
-export interface IntersearchScenePromptOptions {
-  sceneNumber: number; // 1-4
-  storyTitle: string;
-  storyWorld: string; // 'enchanted-forest' | 'outer-space' | 'underwater-kingdom'
-  characterName: string;
-  characterType: string; // 'person' | 'animal' | 'magical'
-  characterStyle: string; // '3d' | 'cartoon' | 'anime'
-  specialAbility: string;
-  ageGroup: string;
-  sceneTitle: string;
-  sceneDescription: string;
-  characterActionForScene: string;
-  characterEmotionForScene: string;
-  storyContinuationForThisScene: string;
+  return `Enhance ${options.characterName} (${options.characterType}) with ${options.specialAbility} ability in ${options.characterStyle} style at ${options.enhancementLevel} level`;
 }
 
 /**
  * Maps world values to display names
  */
 function getWorldDisplayName(world: string): string {
-  const worldDisplayNames: { [key: string]: string } = {
-    "enchanted-forest": "Enchanted Forest",
-    "outer-space": "Outer Space",
-    "underwater-kingdom": "Underwater Kingdom"
-  };
-  return worldDisplayNames[world] || world;
-}
-
-/**
- * Builds an intersearch scene prompt based on the provided format
- */
-export function buildIntersearchScenePrompt(options: IntersearchScenePromptOptions): string {
-  const worldDisplay = getWorldDisplayName(options.storyWorld);
-
-  return `SCENE INFORMATION:
-- Scene Number: ${options.sceneNumber} (1-4)
-- Book Title: "${options.storyTitle}"
-- World: ${worldDisplay} (Enchanted Forest / Outer Space / Underwater Kingdom)
-- Character to Find: ${options.characterName}, a ${options.characterType}
-- Character Style: ${options.characterStyle}
-- Character Special Ability: ${options.specialAbility}
-- Target Age Group: ${options.ageGroup}
-- Scene Title: "${options.sceneTitle}"
-
-
-SCENE CONTEXT & NARRATIVE:
-
-Scene Setting: ${options.sceneDescription}
-
-Character's Action in This Scene: ${options.characterActionForScene}
-
-Character's Emotional State: ${options.characterEmotionForScene}
-
-Story Context: ${options.storyContinuationForThisScene}`;
-}
-
-/**
- * Interface for story text generation prompt options
- */
-export interface StoryTextPromptOptions {
-  characterName: string;
-  characterType: string; // 'person' | 'animal' | 'magical_creature'
-  specialAbility: string;
-  characterStyle: string; // '3d' | 'cartoon' | 'anime'
-  storyWorld: string; // 'Enchanted Forest' | 'Outer Space' | 'Underwater Kingdom'
-  adventureType: string; // 'Treasure Hunt' | 'Helping a Friend'
-  occasionTheme: string; // 'birthday' | 'graduation' | 'first_day_school' | 'new_sibling' | 'holiday' | 'general'
-  ageGroup: string; // '3-6' | '7-10' | '11-12'
-  readingLevel: string; // 'early_reader' | 'developing_reader' | 'independent_reader'
-  storyTitle: string;
-  pageNumber: number; // 1-5
-  pageText?: string; // For pages 2-5, the previous page text
-  pageSceneDescription?: string; // Scene description for the page
-  pageCharacterAction?: string; // Character action for the page
-  pageEmotion?: string; // Character emotion for the page
-  companionCharacters?: string; // Companion characters if any
-}
-
-/**
- * Maps world values to display names
- */
-function getStoryWorldDisplayName(world: string): string {
   const worldMapping: { [key: string]: string } = {
     "forest": "Enchanted Forest",
     "enchanted-forest": "Enchanted Forest",
@@ -317,16 +235,20 @@ function replaceStoryTextPlaceholders(
   options: StoryTextPromptOptions
 ): string {
   let result = template;
-  const worldDisplay = getStoryWorldDisplayName(options.storyWorld);
-  const adventureDisplay = getAdventureTypeDisplayName(options.adventureType);
   
   result = result.replace(/\{character_name\}/g, options.characterName);
   result = result.replace(/\{character_type\}/g, options.characterType);
   result = result.replace(/\{special_ability\}/g, options.specialAbility);
   result = result.replace(/\{character_style\}/g, options.characterStyle);
+  result = result.replace(/\{story_world\}/g, options.storyWorld);
+  result = result.replace(/\{adventure_type\}/g, options.adventureType);
+  result = result.replace(/\{occasion_theme\}/g, options.occasionTheme || 'general');
   result = result.replace(/\{age_group\}/g, options.ageGroup);
-  result = result.replace(/\{story_world\}/g, worldDisplay);
-  result = result.replace(/\{adventure_type\}/g, adventureDisplay);
+  result = result.replace(/\{reading_level\}/g, options.readingLevel);
+  result = result.replace(/\{story_title\}/g, options.storyTitle);
+  result = result.replace(/\{page_number\}/g, String(options.pageNumber));
+  
+  const adventureDisplay = getAdventureTypeDisplayName(options.adventureType);
   result = result.replace(/\{adventure_objective\}/g, adventureDisplay.toLowerCase());
   
   return result;
@@ -405,24 +327,6 @@ export function buildStoryTextPrompt(options: StoryTextPromptOptions): string {
     promptParts.push(`\n\n${replaceStoryTextPlaceholders(consistencyReq, options)}`);
   }
 
-  // 8. Output format instructions
-  promptParts.push(`\n\nOUTPUT FORMAT:
-Format the output as:
-PAGE 1:
-[content]
-
-PAGE 2:
-[content]
-
-PAGE 3:
-[content]
-
-PAGE 4:
-[content]
-
-PAGE 5:
-[content]`);
-
   // Combine all parts
   const finalPrompt = promptParts.join('');
 
@@ -430,44 +334,86 @@ PAGE 5:
 }
 
 /**
- * Interface for story scene image generation prompt options
+ * Interface for story text generation prompt options
  */
-export interface StoryScenePromptOptions {
-  characterName: string;
-  characterType: string;
-  specialAbility: string;
-  characterStyle: string;
-  storyWorld: string;
-  adventureType: string;
-  ageGroup: string;
-  storyTitle: string;
-  pageNumber: number;
-  pageText: string;
-  pageSceneDescription?: string;
-  pageCharacterAction?: string;
-  pageEmotion?: string;
-  companionCharacters?: string;
-  characterImageUrl?: string; // Reference image URL
+export interface StoryTextPromptOptions {
+  characterName: string
+  characterType: string
+  specialAbility: string
+  characterStyle: '3d' | 'cartoon' | 'anime'
+  storyWorld: string
+  adventureType: string
+  occasionTheme: string
+  ageGroup: string
+  readingLevel: string
+  storyTitle: string
+  pageNumber: number
+}
+
+/**
+ * Interface for intersearch scene prompt options
+ */
+export interface IntersearchScenePromptOptions {
+  sceneNumber: number
+  storyTitle: string
+  storyWorld: string
+  characterName: string
+  characterType: string
+  characterStyle: '3d' | 'cartoon' | 'anime'
+  specialAbility: string
+  ageGroup: string
+  sceneTitle: string
+  sceneDescription: string
+  characterActionForScene: string
+  characterEmotionForScene: string
+  storyContinuationForThisScene: string
+}
+
+/**
+ * Builds an intersearch scene prompt based on the provided format
+ */
+export function buildIntersearchScenePrompt(options: IntersearchScenePromptOptions): string {
+  const worldDisplay = getWorldDisplayName(options.storyWorld);
+
+  return `SCENE INFORMATION:
+- Scene Number: ${options.sceneNumber} (1-4)
+- Book Title: "${options.storyTitle}"
+- World: ${worldDisplay} (Enchanted Forest / Outer Space / Underwater Kingdom)
+- Character to Find: ${options.characterName}, a ${options.characterType}
+- Character Style: ${options.characterStyle}
+- Character Special Ability: ${options.specialAbility}
+- Target Age Group: ${options.ageGroup}
+- Scene Title: "${options.sceneTitle}"
+
+
+SCENE CONTEXT & NARRATIVE:
+
+Scene Setting: ${options.sceneDescription}
+
+Character's Action in This Scene: ${options.characterActionForScene}
+
+Character's Emotional State: ${options.characterEmotionForScene}
+
+Story Context: ${options.storyContinuationForThisScene}`;
 }
 
 /**
  * Interface for intersearch search adventure prompt options
  */
 export interface IntersearchSearchAdventurePromptOptions {
-  characterName: string;
-  characterType: string;
-  characterStyle: '3d' | 'cartoon' | 'anime';
-  specialAbility: string;
-  storyWorld: string; // 'enchanted-forest' | 'outer-space' | 'underwater-kingdom'
-  ageGroup: string; // '3-6' | '7-10' | '11-12'
-  difficulty: string; // 'easy' | 'medium' | 'hard'
-  sceneNumber: number; // 1-4
-  characterReferenceImage?: string;
-  storyTitle?: string; // Story title for cover prompt
+  characterName: string
+  characterType: string
+  characterDescription: string
+  characterStyle: '3d' | 'cartoon' | 'anime'
+  storyWorld: string
+  storyTitle: string
+  ageGroup: string
+  specialAbility: string
+  characterReferenceImage?: string
 }
 
 /**
- * Maps world values to prompt1.json keys
+ * Maps world values to prompt1.json keys for intersearch
  */
 function getWorldKey(world: string): string {
   const worldMapping: { [key: string]: string } = {
@@ -483,17 +429,10 @@ function getWorldKey(world: string): string {
  */
 function getDifficultyKey(difficulty: string): string {
   const normalized = difficulty.toLowerCase();
-  if (normalized === 'easy' || normalized === '3-6') return 'easy';
-  if (normalized === 'medium' || normalized === '7-10') return 'medium';
-  if (normalized === 'hard' || normalized === '11-12') return 'hard';
-  return 'medium'; // default
-}
-
-/**
- * Maps scene number to prompt1.json keys
- */
-function getSceneKey(sceneNumber: number): string {
-  return `scene${sceneNumber}`;
+  if (normalized === 'easy') return 'easy';
+  if (normalized === 'medium') return 'medium';
+  if (normalized === 'hard') return 'hard';
+  return 'easy'; // default
 }
 
 /**
@@ -504,15 +443,14 @@ function replaceIntersearchPlaceholders(
   options: IntersearchSearchAdventurePromptOptions
 ): string {
   let result = template;
-  const worldDisplay = getWorldDisplayName(options.storyWorld);
   
   result = result.replace(/\{character_name\}/g, options.characterName);
   result = result.replace(/\{character_type\}/g, options.characterType);
-  result = result.replace(/\{special_ability\}/g, options.specialAbility);
+  result = result.replace(/\{character_description\}/g, options.characterDescription);
   result = result.replace(/\{character_style\}/g, options.characterStyle);
+  result = result.replace(/\{story_world\}/g, options.storyWorld);
+  result = result.replace(/\{story_title\}/g, options.storyTitle);
   result = result.replace(/\{age_group\}/g, options.ageGroup);
-  result = result.replace(/\{story_world\}/g, worldDisplay);
-  result = result.replace(/\{story_title\}/g, options.storyTitle || 'Adventure Story');
   result = result.replace(/\{character_reference_image\}/g, options.characterReferenceImage || '[REFERENCE IMAGE]');
   
   return result;
@@ -569,9 +507,11 @@ export function buildIntersearchCoverPrompt(
   }
 
   // 3. Character style specifications
-  const styleKey = options.characterStyle === '3d' ? '3d' : 
-                   options.characterStyle === 'cartoon' ? 'cartoon' : 
-                   options.characterStyle === 'anime' ? 'anime' : 'base';
+  const styleKey = options.characterStyle === '3d'
+    ? '3d'
+    : options.characterStyle === 'cartoon'
+    ? 'cartoon'
+    : 'anime';
   const styleSpecs = cover.characterStyleSpecifications?.[styleKey];
   if (styleSpecs && styleSpecs.trim().length > 0) {
     promptParts.push(`\n\n${replaceIntersearchPlaceholders(styleSpecs, options)}`);
@@ -585,16 +525,9 @@ export function buildIntersearchCoverPrompt(
 
 /**
  * Builds an intersearch search adventure prompt from prompt1.json
- * 
- * Combines:
- * 1. basePrompt from generateSearchAdventure
- * 2. complexityRequirements based on difficulty
- * 3. styleSpecifications based on character style
- * 4. characterActions based on scene number
- * 5. worldSpecific based on world and scene number
  */
 export function buildIntersearchSearchAdventurePrompt(
-  options: IntersearchSearchAdventurePromptOptions
+  options: IntersearchSearchAdventurePromptOptions & { sceneNumber: number; difficulty: string }
 ): string {
   const searchAdventure = (prompt1Data as any).generateSearchAdventure;
   if (!searchAdventure) {
@@ -603,40 +536,54 @@ export function buildIntersearchSearchAdventurePrompt(
 
   const promptParts: string[] = [];
 
-  // 1. Base prompt
-  const basePrompt = searchAdventure.basePrompt || '';
-  if (basePrompt && basePrompt.trim().length > 0) {
-    promptParts.push(replaceIntersearchPlaceholders(basePrompt, options));
+  // 0. BOOK INFORMATION (at the head)
+  const worldDisplay = getWorldDisplayName(options.storyWorld);
+  const bookInfo = `BOOK INFORMATION:
+ - Book Title: "${options.storyTitle || 'Adventure Story'}"
+ - Format: Interactive Search Book (Where's Waldo style)
+ - Character: ${options.characterName}, a ${options.characterType}
+ - World: ${worldDisplay} (Enchanted Forest / Outer Space / Underwater Kingdom)
+ - Art Style: ${options.characterStyle}
+ - Target Age Group: ${options.ageGroup}
+ - Scene Number: ${options.sceneNumber} (1-4)
+ - Difficulty: ${options.difficulty}`;
+  promptParts.push(bookInfo);
+
+  // 1. Style specifications
+  const styleSpecs = searchAdventure.styleSpecifications;
+  const baseStyleSpec = styleSpecs?.base || '';
+  const styleKey = options.characterStyle === '3d' ? '3d' : 
+                   options.characterStyle === 'cartoon' ? 'cartoon' : 
+                   'anime';
+  const specificStyleSpec = styleSpecs?.[styleKey] || '';
+  
+  if (baseStyleSpec) {
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(baseStyleSpec, options)}`);
+  }
+  if (specificStyleSpec) {
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(specificStyleSpec, options)}`);
   }
 
   // 2. Complexity requirements based on difficulty
   const difficultyKey = getDifficultyKey(options.difficulty);
   const complexityReq = searchAdventure.complexityRequirements?.[difficultyKey];
   if (complexityReq && complexityReq.trim().length > 0) {
-    promptParts.push(`\n\n${complexityReq}`);
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(complexityReq, options)}`);
   }
 
-  // 3. Style specifications based on character style
-  const styleKey = options.characterStyle === '3d' ? '3d' : 
-                   options.characterStyle === 'cartoon' ? 'cartoon' : 
-                   options.characterStyle === 'anime' ? 'anime' : 'base';
-  const styleSpecs = searchAdventure.styleSpecifications?.[styleKey] || 
-                     searchAdventure.styleSpecifications?.base;
-  if (styleSpecs && styleSpecs.trim().length > 0) {
-    promptParts.push(`\n\n${replaceIntersearchPlaceholders(styleSpecs, options)}`);
-  }
-
-  // 4. Character actions based on scene number
-  const sceneKey = getSceneKey(options.sceneNumber);
-  const characterAction = searchAdventure.characterActions?.[sceneKey];
+  // 3. Character actions based on scene number
+  const characterActions = searchAdventure.characterActions;
+  const sceneKey = `scene${options.sceneNumber}` as keyof typeof characterActions;
+  const characterAction = characterActions?.[sceneKey];
   if (characterAction && characterAction.trim().length > 0) {
-    promptParts.push(`\n\n${characterAction}`);
+    promptParts.push(`\n\n${replaceIntersearchPlaceholders(characterAction, options)}`);
   }
 
-  // 5. World-specific scene description
+  // 4. World-specific scene descriptions
   const worldKey = getWorldKey(options.storyWorld);
   const worldSpecific = searchAdventure.worldSpecific?.[worldKey];
   if (worldSpecific) {
+    const sceneKey = `scene${options.sceneNumber}` as keyof typeof worldSpecific;
     const worldSceneDesc = worldSpecific[sceneKey];
     if (worldSceneDesc && worldSceneDesc.trim().length > 0) {
       promptParts.push(`\n\nWORLD-SPECIFIC SCENE:\n${worldSceneDesc}`);
@@ -650,6 +597,27 @@ export function buildIntersearchSearchAdventurePrompt(
 }
 
 /**
+ * Interface for story scene prompt options
+ */
+export interface StoryScenePromptOptions {
+  characterName: string
+  characterType: string
+  specialAbility: string
+  characterStyle: '3d' | 'cartoon' | 'anime'
+  storyWorld: string
+  adventureType: string
+  ageGroup: string
+  storyTitle: string
+  pageNumber: number
+  pageText: string
+  characterImageUrl?: string
+  pageSceneDescription?: string
+  pageCharacterAction?: string
+  pageEmotion?: string
+  companionCharacters?: string
+}
+
+/**
  * Replaces placeholders in story scene prompts
  */
 function replaceStoryScenePlaceholders(
@@ -657,16 +625,18 @@ function replaceStoryScenePlaceholders(
   options: StoryScenePromptOptions
 ): string {
   let result = template;
-  const worldDisplay = getStoryWorldDisplayName(options.storyWorld);
   
   result = result.replace(/\{character_name\}/g, options.characterName);
   result = result.replace(/\{character_type\}/g, options.characterType);
   result = result.replace(/\{special_ability\}/g, options.specialAbility);
   result = result.replace(/\{character_style\}/g, options.characterStyle);
+  result = result.replace(/\{story_world\}/g, options.storyWorld);
+  result = result.replace(/\{adventure_type\}/g, options.adventureType);
   result = result.replace(/\{age_group\}/g, options.ageGroup);
-  result = result.replace(/\{story_world\}/g, worldDisplay);
-  result = result.replace(/\{page_number\}/g, options.pageNumber.toString());
+  result = result.replace(/\{story_title\}/g, options.storyTitle);
+  result = result.replace(/\{page_number\}/g, String(options.pageNumber));
   result = result.replace(/\{story_page_text\}/g, options.pageText);
+
   
   return result;
 }
@@ -717,7 +687,7 @@ export function buildStoryScenePrompt(options: StoryScenePromptOptions): string 
   const worldSpecific = storyScene.worldSpecific?.[worldKey];
   if (worldSpecific) {
     const pageKey = `page${options.pageNumber}` as keyof typeof worldSpecific;
-    const worldPageDesc = worldSpecific[pageKey];
+    const worldPageDesc = worldSpecific?.[pageKey];
     if (worldPageDesc && worldPageDesc.trim().length > 0) {
       promptParts.push(`\n\n${replaceStoryScenePlaceholders(worldPageDesc, options)}`);
     }
@@ -765,4 +735,44 @@ export function buildStoryScenePrompt(options: StoryScenePromptOptions): string 
   const finalPrompt = promptParts.join('');
 
   return finalPrompt;
+}
+
+/**
+ * Maps story world to dedication prompt key in prompt1.json
+ */
+function getDedicationWorldKey(storyWorld: string): string {
+  const worldLower = storyWorld.toLowerCase();
+  if (worldLower.includes('outer') || worldLower.includes('space')) {
+    return 'outerspace';
+  }
+  if (worldLower.includes('forest') || worldLower.includes('enchanted')) {
+    return 'forest';
+  }
+  if (worldLower.includes('underwater') || worldLower.includes('ocean') || worldLower.includes('sea')) {
+    return 'underwater';
+  }
+  return 'forest'; // default
+}
+
+/**
+ * Builds a dedication scene prompt from prompt1.json based on story world
+ * 
+ * @param storyWorld - The story world (e.g., "enchanted-forest", "outer-space", "underwater-kingdom")
+ * @returns The dedication scene prompt string
+ */
+export function buildDedicationScenePrompt(storyWorld: string): string {
+  const dedication = (prompt1Data as any).dedication;
+  if (!dedication) {
+    throw new Error('dedication not found in prompt1.json');
+  }
+
+  const worldKey = getDedicationWorldKey(storyWorld);
+  const dedicationPrompt = dedication[worldKey];
+  
+  if (!dedicationPrompt || dedicationPrompt.trim().length === 0) {
+    // Fallback to forest if prompt not found
+    return dedication.forest || '';
+  }
+
+  return dedicationPrompt;
 }

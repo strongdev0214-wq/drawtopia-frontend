@@ -689,9 +689,6 @@
                   <div><span class="home_span">Home</span></div>
                 </div>
               </div>
-              {#if activeMenu === "home"}
-                <div class="ellipse-1415_sidebar"></div>
-              {/if}
             </div>
             <div 
               class="parent-menu-dropdown_01" 
@@ -909,16 +906,6 @@
     font-weight: 600;
     line-height: 22.40px;
     word-wrap: break-word;
-  }
-
-  .ellipse-1415_sidebar {
-    width: 248px;
-    height: 114px;
-    left: 89px;
-    top: 15px;
-    position: absolute;
-    background: radial-gradient(ellipse 42.11% 42.11% at 50.00% 52.94%, white 0%, rgba(255, 255, 255, 0) 100%);
-    border-radius: 9999px;
   }
 
   .storylibrary_span {

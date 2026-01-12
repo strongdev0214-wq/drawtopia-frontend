@@ -21,9 +21,18 @@
         const target = event.target as HTMLTextAreaElement | null;
         const value = target?.value ?? "";
         dedicationMessage = value.length > maxChars ? value.slice(0, maxChars) : value;
+        
+        // Save dedication text to sessionStorage
+        if (browser) {
+            sessionStorage.setItem("dedication_text", dedicationMessage);
+        }
     }
     
     function handleContinueToPreview() {
+        // Ensure dedication text is saved before navigating
+        if (browser && dedicationMessage) {
+            sessionStorage.setItem("dedication_text", dedicationMessage);
+        }
         goto("/adventure-story/story-preview");
     }
 </script>

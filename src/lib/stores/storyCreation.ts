@@ -215,6 +215,7 @@ const createStoryCreationStore = () => {
         story_title: state.storyTitle,
         cover_design: state.coverDesign,
         story_cover: state.storyCover,
+        story_type: state.selectedFormat,
         status: 'generating'
       };
     }

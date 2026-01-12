@@ -9,7 +9,7 @@
     import type { ChildProfile } from '../../../lib/database/childProfiles';
     import { createStory } from '../../../lib/database/stories';
     import { user } from '../../../lib/stores/auth';
-    import { buildStoryTextPrompt, buildStoryScenePrompt } from '../../../lib/promptBuilder';
+    import { buildStoryTextPrompt, buildStoryScenePrompt, buildDedicationScenePrompt, buildIntersearchScenePrompt, buildIntersearchSearchAdventurePrompt, buildIntersearchCoverPrompt } from '../../../lib/promptBuilder';
     import drawtopia from "../../../assets/logo.png";
     import shieldstar from "../../../assets/ShieldStar.svg";
     import arrowleft from "../../../assets/ArrowLeft.svg";
@@ -29,6 +29,10 @@
     let storyTextProgress = 0; // 0-50% for story text
     let sceneImageProgress = 0; // 0-50% for scene images (50-100% total)
     let totalSceneImages = 5; // Expected number of scene images
+    let isCancelled = false; // Cancellation flag
+    let previewImage1: string | null = null; // Preview image 1
+    let previewImage2: string | null = null; // Preview image 2
+    let previewImage3: string | null = null; // Preview image 3 (first scene preview)
 
     // Determine which magical wand GIF to show based on completion percentage
     $: currentMagicalWand = completionPercent < 25 
@@ -40,12 +44,26 @@
     // Calculate total completion percent from story and image progress
     $: completionPercent = Math.min(100, storyTextProgress + sceneImageProgress);
 
-    // Navigate to final page when completion reaches 100%
+    // Track story type (interactive or story)
+    $: storyType = sessionStorage.getItem('selectedFormat') || 'story';
+
+    // Navigate to appropriate page when completion reaches 100%
     $: if (completionPercent >= 100 && !hasNavigated && storyGenerated) {
         hasNavigated = true;
         // Small delay to ensure UI updates before navigation
         setTimeout(() => {
-            goto('/adventure-story/final');
+            if (storyType === 'interactive') {
+                // Navigate to intersearch page with story ID
+                const storyId = browser ? sessionStorage.getItem('currentStoryId') : null;
+                if (storyId) {
+                    goto(`/intersearch/1?storyId=${storyId}`);
+                } else {
+                    goto('/intersearch/1');
+                }
+            } else {
+                // Navigate to adventure story final page
+                goto('/adventure-story/final');
+            }
         }, 500);
     }
 
@@ -110,6 +128,492 @@
         return '7-10';
     }
 
+    // Scene titles for interactive stories
+    const sceneTitles: { [key: string]: string[] } = {
+        "enchanted-forest": [
+            "The Magical Forest",
+            "The Enchanted Castle",
+            "The Crystal Cave",
+            "The Rainbow Meadow",
+        ],
+        "outer-space": [
+            "The Cosmic Station",
+            "The Alien Planet",
+            "The Asteroid Field",
+            "The Nebula Garden",
+        ],
+        "underwater-kingdom": [
+            "The Coral Reef",
+            "The Sunken Palace",
+            "The Pearl Cave",
+            "The Kelp Forest",
+        ],
+    };
+
+    // Get scene-specific information for prompts
+    function getSceneInfo(world: string, sceneIndex: number): {
+        sceneDescription: string;
+        characterAction: string;
+        characterEmotion: string;
+        storyContext: string;
+    } {
+        const sceneInfo: { [key: string]: Array<{
+            sceneDescription: string;
+            characterAction: string;
+            characterEmotion: string;
+            storyContext: string;
+        }> } = {
+            "enchanted-forest": [
+                {
+                    sceneDescription: "A magical forest filled with ancient trees, glowing mushrooms, and mystical creatures. Sunlight filters through the canopy, creating dappled patterns on the forest floor.",
+                    characterAction: "Waving cheerfully to other forest creatures",
+                    characterEmotion: "Happy and welcoming",
+                    storyContext: "The adventure begins as the character enters the enchanted forest, ready to explore its magical wonders."
+                },
+                {
+                    sceneDescription: "An enchanted castle with towering spires, magical windows, and floating elements. The castle is surrounded by a mystical garden with talking flowers.",
+                    characterAction: "Running excitedly through the castle grounds",
+                    characterEmotion: "Excited and curious",
+                    storyContext: "The character discovers the enchanted castle and begins their quest to find hidden treasures."
+                },
+                {
+                    sceneDescription: "A crystal cave with sparkling walls, glowing crystals, and magical light reflections. The cave is filled with hidden passages and mysterious artifacts.",
+                    characterAction: "Hiding playfully behind crystal formations",
+                    characterEmotion: "Playful and mischievous",
+                    storyContext: "Deep in the crystal cave, the character searches for clues while playing hide and seek with magical creatures."
+                },
+                {
+                    sceneDescription: "A rainbow meadow with colorful flowers, butterflies, and a magical rainbow arching overhead. The meadow is filled with celebrating creatures.",
+                    characterAction: "Celebrating with a victory pose",
+                    characterEmotion: "Triumphant and joyful",
+                    storyContext: "The character has completed their quest and celebrates with all the magical friends they met along the way."
+                }
+            ],
+            "outer-space": [
+                {
+                    sceneDescription: "A cosmic space station with floating platforms, alien technology, and stars visible through windows. Space creatures and robots move about.",
+                    characterAction: "Waving to friendly aliens and space creatures",
+                    characterEmotion: "Happy and welcoming",
+                    storyContext: "The character arrives at the cosmic station, beginning their space adventure among the stars."
+                },
+                {
+                    sceneDescription: "An alien planet with strange vegetation, floating rocks, and multiple moons in the sky. Colorful alien creatures explore the landscape.",
+                    characterAction: "Running and exploring the alien landscape",
+                    characterEmotion: "Excited and curious",
+                    storyContext: "The character lands on an alien planet and begins exploring its unique and wondrous environment."
+                },
+                {
+                    sceneDescription: "An asteroid field with floating rocks, space debris, and cosmic particles. Spaceships navigate through the dangerous but beautiful field.",
+                    characterAction: "Hiding behind asteroids while navigating",
+                    characterEmotion: "Playful and adventurous",
+                    storyContext: "The character navigates through the asteroid field, using their skills to avoid obstacles and find the path forward."
+                },
+                {
+                    sceneDescription: "A nebula garden with swirling cosmic colors, floating space flowers, and a beautiful starry backdrop. Space creatures gather for celebration.",
+                    characterAction: "Celebrating with a victory pose among the stars",
+                    characterEmotion: "Triumphant and joyful",
+                    storyContext: "The character completes their space mission and celebrates in the beautiful nebula garden with all their cosmic friends."
+                }
+            ],
+            "underwater-kingdom": [
+                {
+                    sceneDescription: "A vibrant coral reef with colorful fish, sea plants, and bioluminescent creatures. Sunlight filters through the water creating beautiful light patterns.",
+                    characterAction: "Waving to friendly sea creatures",
+                    characterEmotion: "Happy and welcoming",
+                    storyContext: "The character enters the underwater kingdom and begins their aquatic adventure among the coral reefs."
+                },
+                {
+                    sceneDescription: "A sunken palace with ancient architecture, glowing pearls, and underwater gardens. Mermaids and sea creatures swim around the magnificent structure.",
+                    characterAction: "Swimming excitedly through the palace corridors",
+                    characterEmotion: "Excited and curious",
+                    storyContext: "The character discovers the sunken palace and begins exploring its underwater wonders and hidden treasures."
+                },
+                {
+                    sceneDescription: "A pearl cave with glowing pearls, crystal formations, and magical underwater light. The cave is filled with hidden treasures and sea creatures.",
+                    characterAction: "Hiding playfully behind pearl formations",
+                    characterEmotion: "Playful and mischievous",
+                    storyContext: "Deep in the pearl cave, the character searches for the legendary pearl while playing with friendly sea creatures."
+                },
+                {
+                    sceneDescription: "A kelp forest with swaying seaweed, colorful fish, and bioluminescent plants. The forest is alive with celebrating sea creatures.",
+                    characterAction: "Celebrating with a victory pose underwater",
+                    characterEmotion: "Triumphant and joyful",
+                    storyContext: "The character has found the treasure and celebrates in the kelp forest with all their underwater friends."
+                }
+            ]
+        };
+
+        const worldScenes = sceneInfo[world] || sceneInfo["enchanted-forest"];
+        return worldScenes[sceneIndex] || worldScenes[0];
+    }
+
+    // Cancel generation and navigate back
+    function handleCancel() {
+        isCancelled = true;
+        if (intervalId !== null) {
+            clearInterval(intervalId);
+            intervalId = null;
+        }
+        goto('/adventure-story/story-preview');
+    }
+
+    // Generate interactive intersearch story
+    async function generateIntersearchStory() {
+        if (isCancelled) return;
+        
+        try {
+            // Initialize story creation store
+            storyCreation.init();
+            const storyState = get(storyCreation);
+            
+            // Get character data
+            const characterName = storyState.characterName || sessionStorage.getItem('characterName') || 'Character';
+            const characterType = storyState.characterType || sessionStorage.getItem('selectedCharacterType') || 'person';
+            const specialAbility = storyState.specialAbility || sessionStorage.getItem('specialAbility') || '';
+            const characterStyle = storyState.characterStyle || sessionStorage.getItem('selectedStyle') || 'cartoon';
+            const storyTitle = storyState.storyTitle || sessionStorage.getItem('storyTitle') || `${characterName}'s Search Adventure`;
+            
+            // Get world and difficulty from sessionStorage
+            const selectedWorld = browser ? (sessionStorage.getItem('intersearch_world') || sessionStorage.getItem('selectedWorld') || 'enchanted-forest') : 'enchanted-forest';
+            const selectedDifficulty = browser ? (sessionStorage.getItem('intersearch_difficulty') || 'medium') : 'medium';
+            
+            // Get age group
+            let ageGroup = '7-10';
+            if (selectedDifficulty === 'easy') {
+                ageGroup = '3-6';
+            } else if (selectedDifficulty === 'medium') {
+                ageGroup = '7-10';
+            } else if (selectedDifficulty === 'hard') {
+                ageGroup = '11-12';
+            }
+            
+            // Get character image URL
+            let characterImageUrl: string | null = null;
+            if (browser) {
+                characterImageUrl = sessionStorage.getItem('selectedCharacterEnhancedImage') ||
+                                   sessionStorage.getItem('characterImageUrl') ||
+                                   storyState.originalImageUrl || null;
+                if (characterImageUrl) {
+                    characterImageUrl = characterImageUrl.split('?')[0]; // Clean URL
+                }
+            }
+            
+            if (!characterImageUrl) {
+                throw new Error('Character image URL is required for interactive story generation');
+            }
+            
+            // Set preview images
+            if (browser && characterImageUrl) {
+                previewImage1 = characterImageUrl;
+                previewImage2 = characterImageUrl;
+            }
+            
+            // Update progress: Starting generation (5%)
+            storyTextProgress = 5;
+            
+            // Map world to prompt builder format
+            const worldMap: { [key: string]: string } = {
+                'forest': 'enchanted-forest',
+                'enchanted-forest': 'forest',
+                'enchanted_forest': 'forest',
+                'space': 'outer-space',
+                'outer-space': 'outer-space',
+                'outer_space': 'outer-space',
+                'outerspace': 'outer-space',
+                'underwater': 'underwater-kingdom',
+                'underwater-kingdom': 'underwater-kingdom',
+                'underwater_kingdom': 'underwater-kingdom'
+            };
+            const storyWorld = sessionStorage.getItem('intersearch_world') || worldMap[selectedWorld] || 'enchanted-forest';
+            
+            // Check if cover already exists (from step 6/7)
+            let existingCoverUrl: string | null = null;
+            if (browser) {
+                existingCoverUrl = sessionStorage.getItem('selectedImage_step6') || 
+                                  storyState.storyCover || 
+                                  null;
+                if (existingCoverUrl) {
+                    existingCoverUrl = existingCoverUrl.split('?')[0]; // Clean URL
+                    console.log('Using existing cover:', existingCoverUrl);
+                }
+            }
+            
+            // Build prompts for scenes 1-4 only (cover already generated)
+            const scenePrompts: string[] = [];
+            
+            // Generate scenes 1-4 (skip cover generation)
+            for (let sceneNum = 1; sceneNum <= 4; sceneNum++) {
+                if (isCancelled) return;
+                
+                const sceneIndex = sceneNum - 1;
+                const sceneInfo = getSceneInfo(storyWorld, sceneIndex);
+                const sceneTitle = sceneTitles[storyWorld]?.[sceneIndex] || `Scene ${sceneNum}`;
+                
+                const scenePrompt = buildIntersearchScenePrompt({
+                    sceneNumber: sceneNum,
+                    storyTitle,
+                    storyWorld,
+                    characterName,
+                    characterType,
+                    characterStyle: characterStyle as '3d' | 'cartoon' | 'anime',
+                    specialAbility,
+                    ageGroup,
+                    sceneTitle,
+                    sceneDescription: sceneInfo.sceneDescription,
+                    characterActionForScene: sceneInfo.characterAction,
+                    characterEmotionForScene: sceneInfo.characterEmotion,
+                    storyContinuationForThisScene: sceneInfo.storyContext
+                });
+                
+                const searchAdventurePrompt = buildIntersearchSearchAdventurePrompt({
+                    characterName,
+                    characterType,
+                    characterDescription: specialAbility || `${characterName} is ${characterType}`,
+                    characterStyle: characterStyle as '3d' | 'cartoon' | 'anime',
+                    specialAbility,
+                    storyWorld,
+                    ageGroup,
+                    storyTitle,
+                    characterReferenceImage: characterImageUrl || undefined,
+                    difficulty: selectedDifficulty,
+                    sceneNumber: sceneNum
+                });
+                
+                const combinedPrompt = `${scenePrompt}\n\n${searchAdventurePrompt}`;
+                scenePrompts.push(combinedPrompt);
+            }
+            
+            // Update progress: Prompts ready (15%)
+            storyTextProgress = 15;
+            
+            // Start with existing cover (if available) or empty array
+            const generatedImages: string[] = [];
+            if (existingCoverUrl) {
+                generatedImages.push(existingCoverUrl);
+                // Update preview with existing cover
+                if (browser) {
+                    previewImage3 = existingCoverUrl;
+                }
+                // Update progress for cover (15% -> 20%)
+                storyTextProgress = 20;
+            } else {
+                console.warn('No existing cover found, but continuing with scene generation');
+            }
+            
+            // Generate scene images using edit-image endpoint (scenes 1-4 only)
+            const imageGenerationEndpoint = 'https://drawtopia-backend.vercel.app/edit-image';
+            
+            for (let index = 0; index < scenePrompts.length; index++) {
+                if (isCancelled) return;
+                
+                try {
+                    const response = await fetch(imageGenerationEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            image_url: characterImageUrl,
+                            prompt: scenePrompts[index],
+                        }),
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to generate scene image ${index + 1}: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.storage_info?.uploaded && data.storage_info?.url) {
+                        const cleanUrl = data.storage_info.url.split('?')[0];
+                        generatedImages.push(cleanUrl);
+                        
+                        // Update preview images as they're generated
+                        if (index === 0 && browser && !previewImage3) {
+                            previewImage3 = cleanUrl; // First scene
+                        }
+                        
+                        // Update progress: 20% (cover) + (index + 1) / 4 * 80% (scenes)
+                        storyTextProgress = 20 + ((index + 1) / scenePrompts.length) * 80;
+                    } else {
+                        throw new Error(`No image URL received for scene ${index + 1}`);
+                    }
+                } catch (error) {
+                    console.error(`Error generating scene image ${index + 1}:`, error);
+                    // Continue with other images even if one fails
+                }
+            }
+            
+            if (isCancelled) return;
+            
+            // Verify we have at least the cover (if existing) or some scenes
+            if (generatedImages.length === 0) {
+                throw new Error('Failed to generate any images');
+            }
+            
+            // Generate dedication image if dedication text exists
+            let dedicationImageUrl: string | null = null;
+            let dedicationText: string | null = null;
+            if (browser) {
+                dedicationText = sessionStorage.getItem('dedication_text');
+                if (dedicationText) {
+                    try {
+                        // Build dedication scene prompt based on story world
+                        const dedicationScenePrompt = buildDedicationScenePrompt(storyWorld);
+                        
+                        // Generate dedication image using edit-image endpoint
+                        const response = await fetch(imageGenerationEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                image_url: characterImageUrl,
+                                prompt: dedicationScenePrompt,
+                            }),
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.storage_info?.uploaded && data.storage_info?.url) {
+                                const cleanUrl = data.storage_info.url.split('?')[0];
+                                dedicationImageUrl = cleanUrl;
+                                sessionStorage.setItem('dedication_image', cleanUrl);
+                                console.log('Dedication image generated:', cleanUrl);
+                            }
+                        } else {
+                            console.warn('Failed to generate dedication image:', response.status);
+                        }
+                    } catch (error) {
+                        console.error('Error generating dedication image:', error);
+                        // Continue even if dedication image generation fails
+                    }
+                }
+            }
+            
+            // Update progress: All images generated (100%)
+            storyTextProgress = 100;
+            sceneImageProgress = 0; // Not used for interactive stories
+            
+            // Save to database
+            await saveIntersearchStoryToDatabase(generatedImages, storyWorld, selectedDifficulty, characterImageUrl, dedicationText, dedicationImageUrl);
+            
+            storyGenerated = true;
+        } catch (error) {
+            console.error('Error generating interactive story:', error);
+            // Set progress to 100% to allow navigation even on error
+            storyTextProgress = 100;
+            sceneImageProgress = 0;
+            storyGenerated = true;
+        }
+    }
+
+    // Save interactive story to database
+    async function saveIntersearchStoryToDatabase(
+        sceneImages: string[],
+        world: string,
+        difficulty: string,
+        originalImageUrl: string,
+        dedicationText?: string | null,
+        dedicationImage?: string | null
+    ) {
+        try {
+            const storyState = get(storyCreation);
+            
+            if (!storyState.selectedChildProfileId || storyState.selectedChildProfileId === 'undefined') {
+                console.warn('Cannot save interactive story: No child profile selected');
+                return;
+            }
+            
+            const characterName = storyState.characterName || sessionStorage.getItem('characterName') || 'Character';
+            const characterType = storyState.characterType || sessionStorage.getItem('selectedCharacterType') || 'person';
+            const specialAbility = storyState.specialAbility || sessionStorage.getItem('specialAbility') || '';
+            const characterStyle = storyState.characterStyle || sessionStorage.getItem('selectedStyle') || 'cartoon';
+            const storyTitle = storyState.storyTitle || sessionStorage.getItem('storyTitle') || `${characterName}'s Search Adventure`;
+            
+            // Map world names to database format
+            const worldMap: { [key: string]: 'forest' | 'space' | 'underwater' } = {
+                'enchanted-forest': 'forest',
+                'outer-space': 'space',
+                'underwater-kingdom': 'underwater',
+                'forest': 'forest',
+                'space': 'space',
+                'underwater': 'underwater'
+            };
+            const dbWorld = worldMap[world] || 'forest';
+            
+            // Map character type to database format
+            const typeMap: { [key: string]: 'person' | 'animal' | 'magical_creature' } = {
+                'person': 'person',
+                'animal': 'animal',
+                'magical': 'magical_creature',
+                'magical_creature': 'magical_creature'
+            };
+            const dbType = typeMap[characterType] || 'person';
+            
+            // Prepare story content for search adventure
+            const storyContent = {
+                type: 'search_adventure',
+                cover: sceneImages[0]?.split('?')[0] || undefined,
+                scenes: sceneImages.slice(1).map((url, index) => ({
+                    sceneNumber: index + 1,
+                    sceneImage: url.split('?')[0],
+                    sceneTitle: sceneTitles[world]?.[index] || `Scene ${index + 1}`,
+                    difficulty: difficulty
+                })),
+                world: world,
+                difficulty: difficulty
+            };
+            
+            // Get character_id from sessionStorage
+            const characterIdStr = browser ? sessionStorage.getItem('characterId') : null;
+            const characterId = characterIdStr ? parseInt(characterIdStr) : undefined;
+            
+            // Prepare story data
+            const storyData = {
+                user_id: $user?.id,
+                child_profile_id: storyState.selectedChildProfileId,
+                character_id: characterId,
+                character_name: characterName,
+                character_type: dbType,
+                special_ability: specialAbility || '',
+                character_style: characterStyle as '3d' | 'cartoon' | 'anime',
+                story_world: dbWorld,
+                adventure_type: 'treasure_hunt' as const,
+                original_image_url: originalImageUrl.split('?')[0],
+                enhanced_images: storyState.enhancedImages || [],
+                story_title: storyTitle,
+                story_cover: sceneImages[0]?.split('?')[0] || undefined,
+                cover_design: undefined,
+                story_content: JSON.stringify(storyContent),
+                scene_images: sceneImages.slice(1).map(url => url.split('?')[0]),
+                dedication_text: dedicationText || undefined,
+                dedication_image: dedicationImage ? dedicationImage.split('?')[0] : undefined,
+                status: 'completed' as const,
+                story_type: 'search' as const
+            };
+            
+            console.log('Saving interactive story to database:', storyData);
+            
+            const result = await createStory(storyData);
+            
+            if (result.success && result.data) {
+                console.log('Interactive story saved successfully:', result.data);
+                if (browser && result.data.uid) {
+                    sessionStorage.setItem('currentStoryId', result.data.uid.toString());
+                    storyCreation.update(state => ({
+                        ...state,
+                        storyId: result.data.uid.toString()
+                    }));
+                }
+            } else {
+                console.error('Failed to save interactive story:', result.error);
+            }
+        } catch (error) {
+            console.error('Error saving interactive story to database:', error);
+        }
+    }
+
     // Save story to Supabase database
     async function saveStoryToDatabase(
         storyPages: Array<{ pageNumber: number; text: string; scene?: string }>,
@@ -157,6 +661,10 @@
             const characterIdStr = browser ? sessionStorage.getItem('characterId') : null;
             const characterId = characterIdStr ? parseInt(characterIdStr) : undefined;
 
+            // Get dedication text and image from sessionStorage
+            const dedicationText = browser ? sessionStorage.getItem('dedication_text') : null;
+            const dedicationImage = browser ? sessionStorage.getItem('dedication_image') : null;
+
             // Prepare story data
             const storyData = {
                 user_id: $user?.id,
@@ -176,6 +684,8 @@
                 story_content: JSON.stringify(storyContent),
                 scene_images: sceneImages.length > 0 ? sceneImages.map(url => url.split('?')[0]) : [],
                 audio_urls: audioUrls && audioUrls.length > 0 ? audioUrls.map(url => url ? url.split('?')[0] : null) : [],
+                dedication_text: dedicationText || undefined,
+                dedication_image: dedicationImage ? dedicationImage.split('?')[0] : undefined,
                 status: 'completed' as const
             };
 
@@ -306,6 +816,17 @@
             const { data: { user } } = await supabase.auth.getUser();
             const userId = user?.id;
             
+            // Get dedication text and build dedication scene prompt
+            let dedicationText: string | null = null;
+            let dedicationScenePrompt: string | null = null;
+            if (browser) {
+                dedicationText = sessionStorage.getItem('dedication_text');
+                if (dedicationText) {
+                    // Build dedication scene prompt based on story world
+                    dedicationScenePrompt = buildDedicationScenePrompt(storyWorld);
+                }
+            }
+            
             // Prepare request body matching backend StoryRequest model
             const requestBody: any = {
                 character_name: characterName,
@@ -323,7 +844,9 @@
                 user_id: userId, // For book completion email
                 child_profile_id: storyState.selectedChildProfileId, // For database record
                 character_style: storyState.characterStyle,
-                enhanced_images: storyState.enhancedImages
+                enhanced_images: storyState.enhancedImages,
+                dedication_text: dedicationText || undefined,
+                dedication_scene_prompt: dedicationScenePrompt || undefined
             };
             
             // Update progress: Starting story generation (5%)
@@ -540,6 +1063,19 @@
                 console.log('No audio_urls found in result');
             }
             
+            // Extract dedication image URL from result
+            let dedicationImageUrl: string | null = null;
+            if (result.dedication_image_url) {
+                const cleanDedicationUrl = String(result.dedication_image_url).split('?')[0]; // Clean URL
+                dedicationImageUrl = cleanDedicationUrl;
+                if (browser) {
+                    sessionStorage.setItem('dedication_image', cleanDedicationUrl);
+                    console.log('Dedication image URL saved to session storage:', cleanDedicationUrl);
+                }
+            } else {
+                console.log('No dedication_image_url found in result');
+            }
+            
             // Save story to Supabase database
             await saveStoryToDatabase(storyPages, cleanSceneImages, audioUrls);
             
@@ -560,11 +1096,27 @@
         // Initialize story creation store
         if (browser) {
             storyCreation.init();
+            // Check story type from sessionStorage
+            storyType = sessionStorage.getItem('selectedFormat') || 'story';
         }
 
         
-        // Generate story immediately when page loads
-        generateStory();
+        // Initialize preview images from sessionStorage
+        if (browser) {
+            const characterImage = sessionStorage.getItem('selectedCharacterEnhancedImage') ||
+                                  sessionStorage.getItem('characterImageUrl') || null;
+            if (characterImage) {
+                previewImage1 = characterImage.split('?')[0];
+                previewImage2 = characterImage.split('?')[0];
+            }
+        }
+        
+        // Generate story immediately when page loads based on story type
+        if (storyType === 'interactive') {
+            generateIntersearchStory();
+        } else {
+            generateStory();
+        }
         
         // Fallback timer - only used if generation takes too long
         intervalId = window.setInterval(() => {
@@ -613,18 +1165,18 @@
         </div>
     </div>
     <div class="arrow">
-        <div class="button" on:click={() => {goto('/adventure-story/story-preview')}}>
+        <button type="button" class="button" on:click={() => {goto('/adventure-story/story-preview')}}>
             <div class="arrowleft">
                 <img
                     src={arrowleft}
-                    alt="arrowleft"
+                    alt=""
                     class="img-arrowleft"
                 />
             </div>
             <div class="back">
                 <span class="back_span">Back</span>
             </div>
-        </div>
+        </button>
     </div>
     <div class="frame-1410103818">
         <div class="heading">
@@ -713,13 +1265,13 @@
                             </div>
                             <img
                                 class="frame-2147227509_01"
-                                src="https://placehold.co/171x218"
-                                alt="no image1"
+                                src={previewImage1 || "https://placehold.co/171x218"}
+                                alt=""
                             />
                             <img
                                 class="frame-2147227510_01"
-                                src="https://placehold.co/171x218"
-                                alt="no image2"
+                                src={previewImage2 || "https://placehold.co/171x218"}
+                                alt=""
                             />
                         </div>
                     </div>

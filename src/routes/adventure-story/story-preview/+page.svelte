@@ -1072,6 +1072,17 @@
         gap: 10px;
         display: flex;
         cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .button_01:hover {
+        transform: translateY(-1px);
+        box-shadow: 0px 5px 0px #438bff;
+    }
+
+    .button_01:active {
+        transform: translateY(1px);
+        box-shadow: 0px 3px 0px #438bff;
     }
 
     .logo-text-full {
@@ -1377,6 +1388,14 @@
         align-items: center;
         gap: 10px;
         display: flex;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .button:hover {
+        background: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0px 6px 8px rgba(98.89, 98.89, 98.89, 0.25);
     }
 
     .frame-1410104246 {
@@ -1394,6 +1413,15 @@
         gap: 8px;
         display: flex;
         cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .frame-1410104246:hover {
+        background: #3578e5;
+    }
+
+    .frame-1410104246:active {
+        background: #2d6bd1;
     }
 
 

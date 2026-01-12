@@ -55,7 +55,7 @@
         }
 
         // Navigate to intersearch/1
-        goto('/intersearch/1');
+        goto('/create-character/7');
     }
 </script>
 

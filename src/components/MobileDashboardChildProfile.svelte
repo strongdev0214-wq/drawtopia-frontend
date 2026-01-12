@@ -10,7 +10,6 @@
   // Kept for parent component API compatibility (passed from parent but not used in this component)
   export let fetchChildProfiles: (userId: string) => Promise<void>;
 
-  const dispatch = createEventDispatcher();
 
   // Handle "Add Children" button click
   function handleAddChildren() {
@@ -18,21 +17,6 @@
     console.log("Add children clicked");
     // You might want to navigate to a create child profile page
     // goto("/create-child-profile");
-  }
-
-  // Handle "Edit" button click for a specific child
-  function handleEdit(child: any) {
-    console.log("++++++++++++++++++++++++++++++++++++++++++");
-    const childId = child.id?.toString();
-    const childName = child.first_name || child.name || "Unnamed Child";
-
-    if (!childId) {
-      console.error("Child ID is missing");
-      return;
-    }
-
-    // Navigate to edit page with child profile info as query parameters
-    goto(`/create-child-profile/edit?id=${childId}&name=${encodeURIComponent(childName)}`);
   }
 
   // Handle "New Story" button click for a specific child

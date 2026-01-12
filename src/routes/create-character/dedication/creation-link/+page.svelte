@@ -4,6 +4,8 @@
     import ArrowLeft from "../../../../assets/ArrowLeft.svg"
     import star from "../../../../assets/star.png"
     import std_book_image from "../../../../assets/std_book_cover.png"
+    import { browser } from "$app/environment";
+    import { goto } from "$app/navigation";
 
     let isCustomDedicationSelected = false;
     let customDedicationText = "Dear Emma, Adventure awaits for the bravest of hearts — just like yours.       — From Papa";
@@ -11,6 +13,32 @@
     let selectedPresetIndex = 0;
     
     $: characterCount = customDedicationText.length;
+    
+    // Get selected dedication text (preset or custom)
+    $: selectedDedicationText = isCustomDedicationSelected 
+        ? customDedicationText 
+        : (selectedPresetIndex === 0 
+            ? "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma"
+            : selectedPresetIndex === 1
+            ? "Every page is a hug from me to you. — With love, Grandma"
+            : selectedPresetIndex === 2
+            ? "Every adventure begins with a little bit of love and imagination. — With love, Grandma"
+            : selectedPresetIndex === 3
+            ? "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma"
+            : customDedicationText);
+    
+    // Save dedication text to sessionStorage whenever it changes
+    $: if (browser && selectedDedicationText) {
+        sessionStorage.setItem("dedication_text", selectedDedicationText);
+    }
+    
+    function handleContinueToPreview() {
+        // Ensure dedication text is saved before navigating
+        if (browser && selectedDedicationText) {
+            sessionStorage.setItem("dedication_text", selectedDedicationText);
+        }
+        goto("/adventure-story/story-preview");
+    }
 </script>
 
 <div class="dedication-pages-when-selected-creation-link-default">
@@ -99,8 +127,14 @@
                         <div 
                             class="selected"
                             class:selected-active={selectedPresetIndex === 0}
-                            on:click={() => { selectedPresetIndex = 0; isCustomDedicationSelected = false; customDedicationText = "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma"; }}
-                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 0, isCustomDedicationSelected = false, customDedicationText = "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma", e.preventDefault())}
+                            on:click={() => { 
+                                selectedPresetIndex = 0; 
+                                isCustomDedicationSelected = false; 
+                                const text = "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma";
+                                customDedicationText = text;
+                                if (browser) sessionStorage.setItem("dedication_text", text);
+                            }}
+                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 0, isCustomDedicationSelected = false, customDedicationText = "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma", browser && sessionStorage.setItem("dedication_text", "May you always believe in magic, wonder, and your beautiful imagination. — With love, Grandma"), e.preventDefault())}
                             role="button"
                             tabindex="0"
                         >
@@ -120,8 +154,14 @@
                         <div 
                             class="selected_box"
                             class:selected-active={selectedPresetIndex === 1}
-                            on:click={() => { selectedPresetIndex = 1; isCustomDedicationSelected = false; customDedicationText = "Every page is a hug from me to you. — With love, Grandma"; }}
-                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 1, isCustomDedicationSelected = false, customDedicationText = "Every page is a hug from me to you. — With love, Grandma", e.preventDefault())}
+                            on:click={() => { 
+                                selectedPresetIndex = 1; 
+                                isCustomDedicationSelected = false; 
+                                const text = "Every page is a hug from me to you. — With love, Grandma";
+                                customDedicationText = text;
+                                if (browser) sessionStorage.setItem("dedication_text", text);
+                            }}
+                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 1, isCustomDedicationSelected = false, customDedicationText = "Every page is a hug from me to you. — With love, Grandma", browser && sessionStorage.setItem("dedication_text", "Every page is a hug from me to you. — With love, Grandma"), e.preventDefault())}
                             role="button"
                             tabindex="0"
                         >
@@ -138,8 +178,14 @@
                         <div 
                             class="selected_box"
                             class:selected-active={selectedPresetIndex === 2}
-                            on:click={() => { selectedPresetIndex = 2; isCustomDedicationSelected = false; customDedicationText = "Every adventure begins with a little bit of love and imagination. — With love, Grandma"; }}
-                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 2, isCustomDedicationSelected = false, customDedicationText = "Every adventure begins with a little bit of love and imagination. — With love, Grandma", e.preventDefault())}
+                            on:click={() => { 
+                                selectedPresetIndex = 2; 
+                                isCustomDedicationSelected = false; 
+                                const text = "Every adventure begins with a little bit of love and imagination. — With love, Grandma";
+                                customDedicationText = text;
+                                if (browser) sessionStorage.setItem("dedication_text", text);
+                            }}
+                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 2, isCustomDedicationSelected = false, customDedicationText = "Every adventure begins with a little bit of love and imagination. — With love, Grandma", browser && sessionStorage.setItem("dedication_text", "Every adventure begins with a little bit of love and imagination. — With love, Grandma"), e.preventDefault())}
                             role="button"
                             tabindex="0"
                         >
@@ -156,8 +202,14 @@
                         <div 
                             class="selected_box"
                             class:selected-active={selectedPresetIndex === 3}
-                            on:click={() => { selectedPresetIndex = 3; isCustomDedicationSelected = false; customDedicationText = "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma"; }}
-                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 3, isCustomDedicationSelected = false, customDedicationText = "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma", e.preventDefault())}
+                            on:click={() => { 
+                                selectedPresetIndex = 3; 
+                                isCustomDedicationSelected = false; 
+                                const text = "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma";
+                                customDedicationText = text;
+                                if (browser) sessionStorage.setItem("dedication_text", text);
+                            }}
+                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedPresetIndex = 3, isCustomDedicationSelected = false, customDedicationText = "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma", browser && sessionStorage.setItem("dedication_text", "May your heart stay curious and your dreams grow brighter every day. — Love always, Grandma"), e.preventDefault())}
                             role="button"
                             tabindex="0"
                         >
@@ -179,8 +231,16 @@
                         <div 
                             class="selected_04" 
                             class:selected-custom={isCustomDedicationSelected} 
-                            on:click={() => { isCustomDedicationSelected = !isCustomDedicationSelected; if (isCustomDedicationSelected) { selectedPresetIndex = -1; } }}
-                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') ? (isCustomDedicationSelected = !isCustomDedicationSelected, isCustomDedicationSelected && (selectedPresetIndex = -1), e.preventDefault()) : null}
+                            on:click={() => { 
+                                isCustomDedicationSelected = !isCustomDedicationSelected; 
+                                if (isCustomDedicationSelected) { 
+                                    selectedPresetIndex = -1;
+                                    if (browser && customDedicationText) {
+                                        sessionStorage.setItem("dedication_text", customDedicationText);
+                                    }
+                                }
+                            }}
+                            on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') ? (isCustomDedicationSelected = !isCustomDedicationSelected, isCustomDedicationSelected && (selectedPresetIndex = -1, browser && customDedicationText && sessionStorage.setItem("dedication_text", customDedicationText)), e.preventDefault()) : null}
                             role="button"
                             tabindex="0"
                         >
@@ -204,6 +264,11 @@
                                         bind:value={customDedicationText}
                                         maxlength={maxCharacters}
                                         placeholder="Enter your custom dedication message..."
+                                        on:input={() => {
+                                            if (browser && isCustomDedicationSelected && customDedicationText) {
+                                                sessionStorage.setItem("dedication_text", customDedicationText);
+                                            }
+                                        }}
                                     ></textarea>
                                 </div>
                                 <div class="text-42200-characters"><span class="f2200characters_span">{characterCount}/{maxCharacters} Characters</span></div>
@@ -215,14 +280,14 @@
         </div>
         <div class="frame-1410103860">
             <div class="frame-1410103870">
-                <div class="button">
+                <div class="button" on:click={() => goto('/create-character/7')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goto('/create-character/7')}>
                     <div class="arrowleft">
                         <img src={ArrowLeft} alt="Arrow Left" class="img-arrowleft" />
                     </div>
                     <div class="back-to-step"><span class="backtostep_span">Back To Step</span></div>
                 </div>
             </div>
-            <div class="frame-1410104246">
+            <div class="frame-1410104246" on:click={handleContinueToPreview} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && handleContinueToPreview()}>
                 <div class="continue-to-preview-story"><span class="continuetopreviewstory_span">Continue to Preview Story</span></div>
                 <div class="ellipse-1415"></div>
             </div>
@@ -1099,6 +1164,16 @@
     align-items: center;
     gap: 8px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.frame-1410104246:hover {
+    background: #3578e5;
+}
+
+.frame-1410104246:active {
+    background: #2d6bd1;
 }
 
 .heading_01 {
@@ -1275,6 +1350,14 @@
     align-items: center;
     gap: 10px;
     display: flex;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.button:hover {
+    background: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0px 6px 8px rgba(98.89, 98.89, 98.89, 0.25);
 }
 
 .progress-bar_01 {

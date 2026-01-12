@@ -11,6 +11,7 @@
   import forestBackground from "../../assets/forest_share_back.png";
   import waterBackground from "../../assets/water_share_back.png";
   import spaceBackground from "../../assets/space_share_back.png";
+  import dedicationLeft from "../../assets/dedicationleft.png";
   import { getStoryById } from "../../lib/database/stories";
 
   let storyScenes: string[] = [];
@@ -22,6 +23,11 @@
   let isFullscreen = false;
   let storyWorld: 'forest' | 'underwater' | 'space' | '' = '';
   let backgroundImage = '';
+  
+  // Dedication data
+  let dedicationText = '';
+  let dedicationImage = '';
+  let hasDedication = false;
 
   // Audio playback state
   let audioUrls: (string | null)[] = [];
@@ -95,6 +101,9 @@
         // Build storyScenes array: [cover, scene1, scene2, ...]
         const loadedScenes: string[] = [];
         
+        // Check if this is a search story type
+        const isSearchStory = storyData.story_type === 'search';
+        
         // Load story content/pages and extract scene images
         if (storyData.story_content) {
           try {
@@ -104,56 +113,86 @@
               : storyData.story_content;
             
             console.log('[share] Parsed story content:', content);
+            console.log('[share] Story type:', storyData.story_type, 'isSearchStory:', isSearchStory);
             
-            // First, add the story cover if available
-            const coverUrl = storyData.story_cover || content.cover;
-            if (coverUrl) {
-              loadedScenes.push(coverUrl.split("?")[0]);
-              console.log('[share] Added story cover:', coverUrl);
-            }
-            
-            // Handle different content formats
-            if (Array.isArray(content)) {
-              // If it's an array of pages
-              storyPages = content.map((page: any, index: number) => ({
-                pageNumber: page.pageNumber || index + 1,
-                text: page.text || page.content || ""
-              }));
+            // Handle search story type with specific structure: { cover, scenes: [{ sceneImage, sceneTitle, ... }] }
+            if (isSearchStory && content.cover !== undefined && content.scenes && Array.isArray(content.scenes)) {
+              // Add cover first
+              const coverUrl = content.cover || storyData.story_cover;
+              if (coverUrl) {
+                loadedScenes.push(coverUrl.split("?")[0]);
+                console.log('[share] Added search story cover:', coverUrl);
+              }
               
-              // Extract scene images from pages
-              const scenesFromPages = content
-                .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
+              // Add scenes from the scenes array
+              const scenesFromContent = content.scenes
+                .map((scene: any) => scene.sceneImage || scene.image || scene.imageUrl || scene.image_url)
                 .filter((url: string | undefined): url is string => !!url);
               
-              if (scenesFromPages.length > 0) {
-                loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
-                console.log('[share] Loaded scene images from pages:', scenesFromPages);
+              if (scenesFromContent.length > 0) {
+                loadedScenes.push(...scenesFromContent.map((url: string) => url.split("?")[0]));
+                console.log('[share] Loaded search story scenes:', scenesFromContent);
               }
-            } else if (content.pages && Array.isArray(content.pages)) {
-              // If it has a pages property
-              storyPages = content.pages.map((page: any, index: number) => ({
-                pageNumber: page.pageNumber || index + 1,
-                text: page.text || page.content || ""
-              }));
               
-              // Extract scene images from pages
-              const scenesFromPages = content.pages
-                .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
-                .filter((url: string | undefined): url is string => !!url);
-              
-              if (scenesFromPages.length > 0) {
-                loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
-                console.log('[share] Loaded scene images from content.pages:', scenesFromPages);
+              // For search stories, we can optionally create pages from scene titles
+              if (content.scenes && Array.isArray(content.scenes)) {
+                storyPages = content.scenes.map((scene: any, index: number) => ({
+                  pageNumber: index + 1,
+                  text: scene.sceneTitle || scene.title || `Scene ${index + 1}`
+                }));
               }
-            } else if (typeof content === 'string') {
-              // If it's a single string, create one page
-              storyPages = [{ pageNumber: 1, text: content }];
-            }
-            
-            // Fallback: use scene_images if available and no scenes loaded yet
-            if (loadedScenes.length <= 1 && storyData.scene_images && Array.isArray(storyData.scene_images)) {
-              loadedScenes.push(...storyData.scene_images.map((url: string) => url.split("?")[0]));
-              console.log('[share] Loaded scenes from scene_images fallback:', storyData.scene_images.length);
+            } else {
+              // Handle regular story types (existing logic)
+              // First, add the story cover if available
+              const coverUrl = storyData.story_cover || content.cover;
+              if (coverUrl) {
+                loadedScenes.push(coverUrl.split("?")[0]);
+                console.log('[share] Added story cover:', coverUrl);
+              }
+              
+              // Handle different content formats
+              if (Array.isArray(content)) {
+                // If it's an array of pages
+                storyPages = content.map((page: any, index: number) => ({
+                  pageNumber: page.pageNumber || index + 1,
+                  text: page.text || page.content || ""
+                }));
+                
+                // Extract scene images from pages
+                const scenesFromPages = content
+                  .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
+                  .filter((url: string | undefined): url is string => !!url);
+                
+                if (scenesFromPages.length > 0) {
+                  loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
+                  console.log('[share] Loaded scene images from pages:', scenesFromPages);
+                }
+              } else if (content.pages && Array.isArray(content.pages)) {
+                // If it has a pages property
+                storyPages = content.pages.map((page: any, index: number) => ({
+                  pageNumber: page.pageNumber || index + 1,
+                  text: page.text || page.content || ""
+                }));
+                
+                // Extract scene images from pages
+                const scenesFromPages = content.pages
+                  .map((page: any) => page.sceneImage || page.scene || page.imageUrl || page.image_url || page.image)
+                  .filter((url: string | undefined): url is string => !!url);
+                
+                if (scenesFromPages.length > 0) {
+                  loadedScenes.push(...scenesFromPages.map((url: string) => url.split("?")[0]));
+                  console.log('[share] Loaded scene images from content.pages:', scenesFromPages);
+                }
+              } else if (typeof content === 'string') {
+                // If it's a single string, create one page
+                storyPages = [{ pageNumber: 1, text: content }];
+              }
+              
+              // Fallback: use scene_images if available and no scenes loaded yet
+              if (loadedScenes.length <= 1 && storyData.scene_images && Array.isArray(storyData.scene_images)) {
+                loadedScenes.push(...storyData.scene_images.map((url: string) => url.split("?")[0]));
+                console.log('[share] Loaded scenes from scene_images fallback:', storyData.scene_images.length);
+              }
             }
             
             console.log('[share] Loaded scenes:', loadedScenes.length, loadedScenes);
@@ -162,6 +201,20 @@
           } catch (error) {
             console.error('[share] Error parsing story content:', error);
             loadError = "Error loading story content.";
+          }
+        }
+        
+        // Check for dedication and insert after cover if it exists
+        if (storyData.dedication_text || storyData.dedication_image) {
+          dedicationText = storyData.dedication_text || '';
+          dedicationImage = storyData.dedication_image ? storyData.dedication_image.split("?")[0] : '';
+          hasDedication = true;
+          
+          // Insert dedication scene after cover (at index 1)
+          // We'll use a special marker for dedication
+          if (loadedScenes.length > 0) {
+            loadedScenes.splice(1, 0, 'DEDICATION_PAGE');
+            console.log('[share] Added dedication page after cover');
           }
         }
         
@@ -204,8 +257,14 @@
 
   // Audio playback functions
   function toggleAudio() {
-    // Audio index: currentSceneIndex - 1 (since first scene is cover)
-    const audioIndex = currentSceneIndex - 1;
+    // Skip audio for cover (index 0) and dedication (index 1 if hasDedication)
+    if (currentSceneIndex === 0 || (hasDedication && currentSceneIndex === 1)) {
+      console.log("[share] No audio available for this page");
+      return;
+    }
+    
+    // Audio index: account for cover and dedication
+    const audioIndex = currentSceneIndex - (hasDedication ? 2 : 1);
     
     if (audioIndex < 0 || audioIndex >= audioUrls.length || !audioUrls[audioIndex]) {
       console.log("[share] No audio available for this page");
@@ -397,28 +456,65 @@
               <div class="inner-shadow"></div>
             </div>
           </div>
+        {:else if hasDedication && currentSceneIndex === 1 && storyScenes[currentSceneIndex] === 'DEDICATION_PAGE'}
+          <!-- Dedication Page: Left blank, Right with dedication image and text -->
+          <div class="mobile-image-split">
+            <div class="mobile-image-half mobile-image-left dedication-blank">
+              <div class="image dedication-blank-page">
+                <!-- White blank page -->
+                <img
+                src={dedicationLeft}
+                alt="Dedication"
+                class="dedication-image"
+                draggable="false"
+              />
+              </div>
+            </div>
+            <div class="mobile-image-half mobile-image-right dedication-page">
+              <div class="image dedication-content">
+                {#if dedicationImage}
+                  <img
+                    src={dedicationImage}
+                    alt="Dedication"
+                    class="dedication-image"
+                    draggable="false"
+                  />
+                {/if}
+                {#if dedicationText}
+                  <div class="dedication-text-container">
+                    <p class="dedication-text">{dedicationText}</p>
+                  </div>
+                {/if}
+                <div class="inner-shadow"></div>
+              </div>
+            </div>
+          </div>
         {:else}
           <!-- Story Pages: Split into left and right halves -->
           <div class="mobile-image-split">
             <div class="mobile-image-half mobile-image-left">
               <div class="image">
-                <img
-                  src={storyScenes[currentSceneIndex]}
-                  alt={`Scene ${currentSceneIndex} - Left`}
-                  class="scene-main-image scene-image-left"
-                  draggable="false"
-                />
+                {#if storyScenes[currentSceneIndex] && storyScenes[currentSceneIndex] !== 'DEDICATION_PAGE'}
+                  <img
+                    src={storyScenes[currentSceneIndex]}
+                    alt={`Scene ${currentSceneIndex} - Left`}
+                    class="scene-main-image scene-image-left"
+                    draggable="false"
+                  />
+                {/if}
                 <div class="inner-shadow"></div>
               </div>
             </div>
             <div class="mobile-image-half mobile-image-right">
               <div class="image">
-                <img
-                  src={storyScenes[currentSceneIndex]}
-                  alt={`Scene ${currentSceneIndex} - Right`}
-                  class="scene-main-image scene-image-right"
-                  draggable="false"
-                />
+                {#if storyScenes[currentSceneIndex] && storyScenes[currentSceneIndex] !== 'DEDICATION_PAGE'}
+                  <img
+                    src={storyScenes[currentSceneIndex]}
+                    alt={`Scene ${currentSceneIndex} - Right`}
+                    class="scene-main-image scene-image-right"
+                    draggable="false"
+                  />
+                {/if}
                 <div class="inner-shadow"></div>
               </div>
             </div>
@@ -437,15 +533,15 @@
         </div>
       </div>
 
-      <!-- Story Text (if available and not cover) -->
-      {#if currentSceneIndex > 0 && storyPages[currentSceneIndex - 1]}
+      <!-- Story Text (if available and not cover or dedication) -->
+      {#if currentSceneIndex > 0 && !(hasDedication && currentSceneIndex === 1) && storyPages[currentSceneIndex - (hasDedication ? 2 : 1)]}
         <div class="story-text-container">
-          <p class="story-text">{storyPages[currentSceneIndex - 1].text}</p>
+          <p class="story-text">{storyPages[currentSceneIndex - (hasDedication ? 2 : 1)].text}</p>
         </div>
       {/if}
 
-      <!-- Audio Controls (only show if not cover page and audio exists) -->
-      {#if currentSceneIndex > 0 && audioUrls[currentSceneIndex - 1]}
+      <!-- Audio Controls (only show if not cover page, not dedication, and audio exists) -->
+      {#if currentSceneIndex > 0 && !(hasDedication && currentSceneIndex === 1) && audioUrls[currentSceneIndex - (hasDedication ? 2 : 1)]}
         <div class="audio-controls">
           <div class="audio-header">
             <span class="audio-label">Audio Narration</span>
@@ -782,6 +878,64 @@
     left: 0;
     z-index: 2;
     pointer-events: none;
+  }
+
+  /* Dedication Page Styles */
+  .dedication-blank {
+    background: white;
+  }
+
+  .dedication-blank-page {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+  }
+
+  .dedication-page {
+    background: white;
+  }
+
+  .dedication-content {
+    background: white;
+    min-height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    position: relative;
+  }
+
+  .dedication-image {
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+
+  .dedication-text-container {
+    width: 70%;
+    display: flex;
+    justify-content: center;
+    margin-top: 100px;
+    padding: 20px;
+    flex-shrink: 0;
+    position: absolute;
+  }
+
+  .dedication-text {
+    font-size: 32px;
+    line-height: 1.8;
+    color: #333;
+    margin: 0;
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 500;
+    text-align: center;
+    max-width: 100%;
+    word-wrap: break-word;
   }
 
   /* Story Text */
