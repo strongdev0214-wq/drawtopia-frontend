@@ -2272,7 +2272,6 @@
     border-radius: 0;
     position: relative;
     width: 100%;
-    display: block;
   }
   
   /* Make images 200% width to enable split view */
@@ -2796,13 +2795,11 @@
 
   .dedication-text-container {
     width: 70%;
-    display: flex;
     justify-content: center;
     margin-top: 20px;
     padding: 20px;
     flex-shrink: 0;
     position: absolute;
-    bottom: 80px;
   }
 
   .dedication-text {
